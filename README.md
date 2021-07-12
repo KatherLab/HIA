@@ -1,9 +1,14 @@
 # HIA (Histopathology Image Analysis)
 
-This repository contains the Python version of the general workflow offered by https://www.sciencedirect.com/science/article/pii/S0016508520348186?via%3Dihu for classification of the digital histopathology images.
+This repository contains the Python version of a general workflow for end-to-end artificial intelligence on histopathology images. It is based on workflows which were previously described in [Kather et al., Nature Medicine 2019](https://www.nature.com/articles/s41591-019-0462-y) and [Echle et al., Gastroenterology 2020](https://www.sciencedirect.com/science/article/pii/S0016508520348186?via%3Dihu). The objective is to predict a given *label* directly from digitized histological whole slide images (WSI). The *label* is defined on the level of *patients*, not on the level of pixels in a given WSI. Thus, the problems addressed by HAI are *weakly supervised problems*. Common labels are molecular subtype of cancer, binarized clinical outcome or treatment response. Compared to previous Matlab-based implementations of this framework (e.g. [DeepHistology](https://github.com/jnkather/DeepHistology)), this version is implemented using Python and PyTorch and is highly scalable and extensively validated in multiple clincially relevant problems. A key feature of HIA is that it provides an implementation of multiple artificial intelligence algorithms, including
+- Classical resnet-based training (similar to [Kather et al., Nature Medicine 2019](https://www.nature.com/articles/s41591-019-0462-y))
+- Vision transformers (inspired by ###)
+- Multiple instance learning (similar to [Campanella et al., Nature Medicine 2019](https://www.nature.com/articles/s41591-019-0508-1))
+- CLAM - Clustering-constrained attention multiple instance learning (described in [Lu et al., Nature Machine Intelligence 2020](https://www.nature.com/articles/s41551-020-00682-w))
+
 This is important to notice that there are various changes in this version but it follows the same steps.
 
-++ Scipts are still under the development and please always use the final version of it ++
+++ These scripts are still under the development and please always use the final version of it ++
 
 ## How to use this repository:
 To use this workflow, you need to modfiy specific experiement file based on your project. Experiment file is a text file and an example of it can be find this repository. For this file you need to fill the following options:
