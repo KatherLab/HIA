@@ -1,0 +1,22 @@
+{
+    "projectDetails": "This is an example",
+    "dataDir_train": ["A:\\"],
+    "dataDir_test": ["A:\\"],
+
+    "targetLabels": [""],
+    "trainFull": "True",
+
+    "maxNumBlocks": 512,
+    "epochs": 8,
+    "batchSize": 128,
+     
+    "seed": 1,
+    "k": 3,
+
+    "modelName": "resnet",
+    "opt": "adam",
+    "lr": 0.0001,
+    "reg": 0.00001,
+    "gpuNo": 0,
+    "freezeRatio": 0.5,
+}

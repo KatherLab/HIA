@@ -440,18 +440,7 @@ def ReadExperimentFile(args, deploy = False):
     except:
         warnings.warn('GPU ID VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0')   
         args.gpuNo = 0  
-    try:
-        args.numHighScorePatients = int(data['numHighScorePatients'])
-    except:
-        warnings.warn('THE NUMBER OF PATIENTS FOR HIGH SCORE TILES IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 10')   
-        args.numHighScorePatients = 10
-        
-    try:
-        args.numHighScoreBlocks = int(data['numHighScoreBlocks'])
-    except:
-        warnings.warn('THE NUMBER OF HIGH SCORE TILES FOR PER PATIENT IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 10')   
-        args.numHighScoreBlocks = 20  
-        
+              
     
     if args.model_name == 'clam_sb' or args.model_name == 'clam_mb' or args.model_name == 'mil':        
         try:
