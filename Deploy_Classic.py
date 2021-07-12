@@ -26,7 +26,7 @@ from scipy.stats import ttest_ind
 ##############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-parser.add_argument('--adressExp', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\TCGA_VIT_512MAX_05FREEZE_TestFull.txt", help = 'Adress to the experiment File')
+parser.add_argument('--addressExp', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\TCGA_VIT_512MAX_05FREEZE_TestFull.txt", help = 'Adress to the experiment File')
 parser.add_argument('--modelAdr', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\BERN_VIT_512MAX_05FREEZE_TrainFull_EBV\RESULTS\MODEL_Full", help = 'Adress to the selected model')
 
 args = parser.parse_args()

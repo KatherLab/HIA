@@ -273,7 +273,7 @@ def Summarize_Classic(args, labels, reportFile):
 
 def ReadExperimentFile(args, deploy = False):
 
-    with open(args.adressExp) as json_file:        
+    with open(args.addressExp) as json_file:        
         data = json.load(json_file)
         
     args.csv_name = 'CLEANED_DATA'

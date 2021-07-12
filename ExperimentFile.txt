@@ -10,7 +10,6 @@
     "epochs": 8,
     "batchSize": 128,
      
-    "seed": 1,
     "k": 3,
 
     "modelName": "resnet",
