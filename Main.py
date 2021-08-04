@@ -17,7 +17,7 @@ import torch
 ###############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-parser.add_argument('--addressExp', type = str, default = r"D:\ARCHITECTURE PROJECT\RCC\TCGA_RCC_CLAM_TrainFull.txt", help = 'Adress to the experiment File')
+parser.add_argument('--adressExp', type = str, default = r"G:\Adversarial Project\BELFAST_CRC_CrossVal_ResNet.txt", help = 'Adress to the experiment File')
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

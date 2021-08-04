@@ -28,6 +28,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.stats import ttest_ind
+
 ##############################################################################
 
 def CalculatePatientWiseAUC(resultCSVPath, uniquePatients, target_labelDict, resultFolder, counter, clamMil = False):
@@ -47,11 +48,11 @@ def CalculatePatientWiseAUC(resultCSVPath, uniquePatients, target_labelDict, res
         keys_temp.remove(key)
         for pi in uniquePatients:
             patients.append(pi)
-            data_temp = data.loc[data['patientID'] == pi]                        
+            data_temp = data.loc[data['PATIENT'] == pi]                        
             data_temp = data_temp.reset_index()
             
-            y_true.append(data_temp['y'][0])
-            y_true_label.append(utils.get_key_from_value(target_labelDict, data_temp['y'][0]))
+            y_true.append(data_temp['label'][0])
+            y_true_label.append(utils.get_key_from_value(target_labelDict, data_temp['label'][0]))
                         
             if not clamMil:
                 dl_pred = np.where(data_temp[keys_temp].lt(data_temp[key], axis=0).all(axis=1), True, False)
@@ -68,7 +69,7 @@ def CalculatePatientWiseAUC(resultCSVPath, uniquePatients, target_labelDict, res
 
     y_pred_dict = pd.DataFrame.from_dict(y_pred_dict)
 
-    df = pd.DataFrame(list(zip(patients, y_true, y_true_label)), columns =['patients', 'y_true', 'y_true_label'])
+    df = pd.DataFrame(list(zip(patients, y_true, y_true_label)), columns =['PATIENT', 'y_true', 'y_true_label'])
     df = pd.concat([df, y_pred_dict], axis=1)    
     df.to_csv(os.path.join(resultFolder, 'TEST_RESULT_PATIENT_SCORES_' + str(counter) + '.csv'), index = False)
     
@@ -138,9 +139,8 @@ def perf_measure(y_actual, y_hat):
 
 ##############################################################################
 
-def CalculateTotalROC(resultsPath, results, target_labelDict, fixedSensitivity):
+def CalculateTotalROC(resultsPath, results, target_labelDict):
     
-    aucDict = {}
     totalData = []
     
     for item in results:
@@ -149,13 +149,11 @@ def CalculateTotalROC(resultsPath, results, target_labelDict, fixedSensitivity):
     totalData = pd.concat(totalData)
     y_true = list(totalData['y_true'])
     keys = list(target_labelDict.keys())
-       
+    
     for key in keys:
-        aucDict[key] = []
         y_pred = totalData[key]
         fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label = target_labelDict[key])
         print('TOTAL AUC FOR target {} IN THIS DATASET IS : {} '.format(key, np.round(metrics.auc(fpr, tpr), 3)))
-        aucDict[key].append(np.round(metrics.auc(fpr, tpr), 3))
         auc_values = []
         nsamples = 1000
         rng = np.random.RandomState(666)
@@ -171,13 +169,11 @@ def CalculateTotalROC(resultsPath, results, target_labelDict, fixedSensitivity):
         auc_values = np.array(auc_values)
         auc_values.sort()
         
-        print('Lower Confidebnce Interval : {}'.format(np.round(auc_values[int(0.05 * len(auc_values))], 3)))
-        aucDict[key].append(np.round(auc_values[int(0.05 * len(auc_values))], 3))
-        
+        print('Lower Confidebnce Interval : {}'.format(np.round(auc_values[int(0.05 * len(auc_values))], 3)))        
         print('Higher Confidebnce Interval : {}'.format(np.round(auc_values[int(0.95 * len(auc_values))], 3)))
-        aucDict[key].append(np.round(auc_values[int(0.95 * len(auc_values))], 3))
-    return aucDict
-
+        
+    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULTS_PATIENT_SCORES_TOTAL.csv'), index = False)
+    
 ##############################################################################
 
 def find_closes(array, value):
@@ -194,7 +190,7 @@ def MergeResultCSV(resultsPath, results):
         data = pd.read_csv(os.path.join(resultsPath, item))
         totalData.append(data)
     totalData = pd.concat(totalData)
-    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_TOTAL.csv'))
+    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_TILE_SCORES_TOTAL.csv'), index = False)
 
 ##############################################################################
 

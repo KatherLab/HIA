@@ -189,7 +189,15 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
         input_size = 224
-
+        
+    elif model_name == "vgg16":
+        """ VGG11_bn
+        """
+        model_ft = models.vgg16_bn(pretrained=use_pretrained)
+        num_ftrs = model_ft.classifier[6].in_features
+        model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
+        input_size = 224
+        
     elif model_name == "squeezenet":
         """ Squeezenet
         """
@@ -273,7 +281,7 @@ def Summarize_Classic(args, labels, reportFile):
 
 def ReadExperimentFile(args, deploy = False):
 
-    with open(args.addressExp) as json_file:        
+    with open(args.adressExp) as json_file:        
         data = json.load(json_file)
         
     args.csv_name = 'CLEANED_DATA'
@@ -440,7 +448,18 @@ def ReadExperimentFile(args, deploy = False):
     except:
         warnings.warn('GPU ID VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0')   
         args.gpuNo = 0  
-              
+    try:
+        args.numHighScorePatients = int(data['numHighScorePatients'])
+    except:
+        warnings.warn('THE NUMBER OF PATIENTS FOR HIGH SCORE TILES IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 10')   
+        args.numHighScorePatients = 10
+        
+    try:
+        args.numHighScoreBlocks = int(data['numHighScoreBlocks'])
+    except:
+        warnings.warn('THE NUMBER OF HIGH SCORE TILES FOR PER PATIENT IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 10')   
+        args.numHighScoreBlocks = 20  
+        
     
     if args.model_name == 'clam_sb' or args.model_name == 'clam_mb' or args.model_name == 'mil':        
         try:

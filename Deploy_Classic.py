@@ -26,8 +26,8 @@ from scipy.stats import ttest_ind
 ##############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-parser.add_argument('--addressExp', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\TCGA_VIT_512MAX_05FREEZE_TestFull.txt", help = 'Adress to the experiment File')
-parser.add_argument('--modelAdr', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\BERN_VIT_512MAX_05FREEZE_TrainFull_EBV\RESULTS\MODEL_Full", help = 'Adress to the selected model')
+parser.add_argument('--adressExp', type = str, default = r"G:\Adversarial Project\BELFAST_CRC_TestFull_ResNet.txt", help = 'Adress to the experiment File')
+parser.add_argument('--modelAdr', type = str, default = r"G:\Adversarial Project\TCGA_CRC_TrainFull_ResNet_isMSIH\RESULTS\MODEL_Full", help = 'Adress to the selected model')
 
 args = parser.parse_args()
 
@@ -95,11 +95,11 @@ if __name__ == '__main__':
                                   slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True)
         
             
-        test_x = list(test_data['tileAd'])
+        test_x = list(test_data['tilePath'])
         test_y = list(test_data[targetLabel])
-        test_pid = list(test_data['patientID'])
+        test_pid = list(test_data['PATIENT'])
                             
-        df = pd.DataFrame(list(zip(test_x, test_y)), columns =['X', 'y'])
+        df = pd.DataFrame(list(zip(test_x, test_y)), columns =['tilePAth', 'label'])
         df.to_csv(os.path.join(args.split_dir, 'FULL_TEST'+ '.csv'), index = False)
             
         print()  
@@ -132,7 +132,7 @@ if __name__ == '__main__':
         
         scores = pd.DataFrame.from_dict(scores)
             
-        df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['patientID', 'X', 'y'])
+        df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['PATIENT', 'tilePath', 'label'])
         df = pd.concat([df, scores], axis=1)
         
         df.to_csv(os.path.join(args.result, 'TEST_RESULT_FULL.csv'), index = False)

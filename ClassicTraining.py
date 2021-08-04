@@ -23,6 +23,8 @@ import os
 import random
 from sklearn import preprocessing
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 ##############################################################################
 
 def ClassicTraining(args):
@@ -82,10 +84,10 @@ def ClassicTraining(args):
             train_data = GetTiles(patients = patientID, labels = labelsList, imgsList = slidesList, label= targetLabel, 
                                   slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = False)
     
-            train_x = list(train_data['tileAd'])
+            train_x = list(train_data['tilePath'])
             train_y = list(train_data[targetLabel])
                 
-            df = pd.DataFrame(list(zip(train_x, train_y)), columns =['X', 'y'])
+            df = pd.DataFrame(list(zip(train_x, train_y)), columns =['tilePath', 'label'])
             df.to_csv(os.path.join(args.split_dir, 'FULL_TRAIN' + '.csv'), index = False)
             print()  
              
@@ -172,10 +174,10 @@ def ClassicTraining(args):
                 train_data = GetTiles(patients = trainData_patientID, labels = trainData_labels, imgsList = slidesList, label = targetLabel, 
                                       slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = False, seed = args.seed)
                 
-                train_x = list(train_data['tileAd'])
+                train_x = list(train_data['tilePath'])
                 train_y = list(train_data[targetLabel])
                     
-                df = pd.DataFrame(list(zip(train_x, train_y)), columns =['X', 'y'])
+                df = pd.DataFrame(list(zip(train_x, train_y)), columns =['tilePath', 'label'])
                 df.to_csv(os.path.join(args.split_dir, 'SPLIT_TRAIN_' + str(counter)+ '.csv'), index = False)
                 print()   
                 
@@ -184,10 +186,10 @@ def ClassicTraining(args):
                     val_data = GetTiles(patients = valData_patientID, labels = valData_Labels, imgsList = slidesList, label = targetLabel, 
                                           slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True, seed = args.seed)    
                     
-                    val_x = list(val_data['tileAd'])   
+                    val_x = list(val_data['tilePath'])   
                     val_y = list(val_data[targetLabel])
                         
-                    df = pd.DataFrame(list(zip(val_x, val_y)), columns =['X', 'y'])
+                    df = pd.DataFrame(list(zip(val_x, val_y)), columns =['tilePath', 'label'])
                     df.to_csv(os.path.join(args.split_dir, 'SPLIT_VAL_' + str(counter)+ '.csv'), index = False)    
                     print()
                 
@@ -195,11 +197,11 @@ def ClassicTraining(args):
                 test_data = GetTiles(patients = testData_patientID, labels = testData_Labels, imgsList = slidesList, label = targetLabel, 
                                       slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True, seed = args.seed)  
                 
-                test_x = list(test_data['tileAd'])
+                test_x = list(test_data['tilePath'])
                 test_y = list(test_data[targetLabel])
-                test_pid = list(test_data['patientID'])
+                test_pid = list(test_data['PATIENT'])
                     
-                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns = ['pid', 'X', 'y'])
+                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns = ['PATIENT', 'tilePath', 'label'])
                 df.to_csv(os.path.join(args.split_dir, 'SPLIT_TEST_' + str(counter) + '.csv'), index = False)
                 
                 print()
@@ -278,11 +280,11 @@ def ClassicTraining(args):
                 
                 scores = pd.DataFrame.from_dict(scores)
 
-                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['patientID', 'X', 'y'])
+                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['PATIENT', 'tilePath', 'label'])
                 df = pd.concat([df, scores], axis=1)
                 
-                df.to_csv(os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(counter) + '.csv'), index = False)
-                CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(counter) + '.csv'),
+                df.to_csv(os.path.join(args.result, 'TEST_RESULT_TILE_SCORES_' + str(counter) + '.csv'), index = False)
+                CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_TILE_SCORES_' + str(counter) + '.csv'),
                                         uniquePatients = list(set(test_pid)), target_labelDict = args.target_labelDict, resultFolder = args.result,
                                         counter = counter , clamMil = False) 
                 
@@ -294,16 +296,11 @@ def ClassicTraining(args):
             testResult = []
             for i in range(args.k):
                 patientScores.append('TEST_RESULT_PATIENT_SCORES_' + str(i) + '.csv')
-                testResult.append('TEST_RESULT_FOLD_' + str(i) + '.csv')
-            aucDict = CalculateTotalROC(resultsPath = args.result, results = patientScores,target_labelDict =  args.target_labelDict, fixedSensitivity = sensitivity)            
-            
-            outputDf = pd.DataFrame(['AUC', '95_LowConficenceInterval', '95_HighConfidenceInterval'])
-            aucDict_df = pd.DataFrame.from_dict(aucDict)
-            outputDf = pd.concat([outputDf, aucDict_df], axis=1)
-            outputDf.to_csv(os.path.join(args.result, 'STATISTICS.csv'), index = False)
-            
+                testResult.append('TEST_RESULT_TILE_SCORES_' + str(i) + '.csv')      
+                
+            CalculateTotalROC(resultsPath = args.result, results = patientScores, target_labelDict =  args.target_labelDict) 
             MergeResultCSV(args.result, testResult)
-    
+                
 ##############################################################################
 
 
