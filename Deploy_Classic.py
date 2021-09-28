@@ -25,7 +25,7 @@ from scipy.stats import ttest_ind
 
 ##############################################################################
 
-parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
+parser = argparse.ArgumentParser(description = 'Main Script to Deploy')
 parser.add_argument('--adressExp', type = str, default = r"experiment.txt", help = 'Adress to the experiment File')
 parser.add_argument('--modelAdr', type = str, default = r"TrainedFullModel", help = 'Adress to the selected model')
 
