@@ -35,7 +35,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(args.gpuNo)
     args.useCsv = False
     if args.useClassicModel:
-        stats_total, stats_df = ClassicTraining(args)
+        ClassicTraining(args)
     else:
         ClamMILTraining(args)
         

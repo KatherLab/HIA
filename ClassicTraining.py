@@ -30,10 +30,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ##############################################################################
 
 def ClassicTraining(args):
-    
-    stats_total = {}
-    stats_df = pd.DataFrame()
-    
+        
     targetLabels = args.target_labels
     for targetLabel in targetLabels:
         
@@ -44,7 +41,6 @@ def ClassicTraining(args):
         args.projectFolder = utils.CreateProjectFolder(args.project_name, args.adressExp, targetLabel, args.model_name)
         
         if os.path.exists(args.projectFolder):
-            #raise NameError('THis PROJECT IS ALREADY EXISTS!')
             continue
         else:
             os.mkdir(args.projectFolder) 
@@ -334,29 +330,8 @@ def ClassicTraining(args):
                 print('\n############################################################\n')
                 print('')
                 counter = counter + 1
-                
-            # sensitivity = 0.8
-            # patientScores = []
-            # testResult = []
-            # for i in range(args.k):
-            #     patientScores.append('TEST_RESULT_PATIENT_SCORES_' + str(i) + '.csv')
-            #     testResult.append('TEST_RESULT_FOLD_' + str(i) + '.csv')
-            #     #
-            # aucDict = CalculateTotalROC(resultsPath = args.result, results = patientScores,target_labelDict =  args.target_labelDict, fixedSensitivity = sensitivity)            
-            
-            # outputDf = pd.DataFrame(['AUC', 'FalsePositiveRateAt' + str(sensitivity), 'Precision_Score', 'Recal_Score', 'F1_Score', 'NegativePredictiveValue', 'T_test', 'P_Value', '95LowConficenceInterval', '95HighConfidenceInterval'])
-            # aucDict_df = pd.DataFrame.from_dict(aucDict)
-            # outputDf = pd.concat([outputDf, aucDict_df], axis=1)
-            # outputDf.to_csv(os.path.join(args.result, 'STATISTICS.csv'), index = False)
-            
-            # stats_total[targetLabel] = aucDict
-            # stats_df = pd.concat([stats_df, aucDict_df], axis = 1)
-            # MergeResultCSV(args.result, testResult)
-            #GenerateHighScoreTiles(totalPatientResultPath = os.path.join(args.result, 'TEST_RESULTS_PATIENT_SCORES_TOTAL.csv'),
-                                   #totalResultPath = os.path.join(args.result, 'TEST_RESULT_TOTAL.csv'),
-                                  #numHighScorePetients =  args.numHighScorePatients, numHighScoreBlocks = args.numHighScoreBlocks, targetColName = 'MSIH')
-    
-    return stats_total, stats_df                 
+    reportFile.close()
+                    
 ##############################################################################
 
 
