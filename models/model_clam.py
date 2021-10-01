@@ -168,13 +168,20 @@ class CLAM_SB(nn.Module):
 
     def forward(self, h, label=None, instance_eval = False, return_features = True, attention_only = False):
         device = h.device
-        A, h = self.attention_net(h)  # NxK        
+
+        A, h = self.attention_net(h)  # NxK  
         A = torch.transpose(A, 1, 0)  # KxN
+        
+        
+        output = self.classifiers(h)
+        output = F.softmax(output, dim=1)
+        
         if attention_only:
             return A
         A_raw = A
         A = F.softmax(A, dim=1)  # softmax over N
-
+        all_preds = []
+        
         if instance_eval:
             total_inst_loss = 0.0
             all_preds = []
@@ -210,7 +217,7 @@ class CLAM_SB(nn.Module):
             results_dict = {}
         if return_features:
             results_dict.update({'features': M})
-        return logits, Y_prob, Y_hat, A_raw, results_dict
+        return logits, Y_prob, Y_hat, output, results_dict
 
 ##############################################################################
 

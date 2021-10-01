@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Created on Mon Mar  8 10:14:47 2021
 
@@ -25,6 +26,7 @@ from sklearn import preprocessing
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 ##############################################################################
 
 def ClassicTraining(args):
@@ -33,14 +35,16 @@ def ClassicTraining(args):
     stats_df = pd.DataFrame()
     
     targetLabels = args.target_labels
-    
     for targetLabel in targetLabels:
         
-        args.target_label = targetLabel        
+        args.target_label = targetLabel
+        args.feature_extract = False
+        
         random.seed(args.seed)
         args.projectFolder = utils.CreateProjectFolder(args.project_name, args.adressExp, targetLabel, args.model_name)
         
         if os.path.exists(args.projectFolder):
+            #raise NameError('THis PROJECT IS ALREADY EXISTS!')
             continue
         else:
             os.mkdir(args.projectFolder) 
@@ -51,10 +55,9 @@ def ClassicTraining(args):
         reportFile.write('\n' + '**********************************************************************'+ '\n')
         
            
-        patientsList, labelsList, slidesList, clinicalTableList, slideTableList = ConcatCohorts_Classic(imagesPath = args.datadir_train,
-                                                            cliniTablePath = args.clini_dir, slideTablePath = args.slide_dir,label = targetLabel, reportFile = reportFile)
-        
-        print('\n*** LOAD THE DATASET FOR TRAINING ***\n')  
+        patientsList, labelsList, slidesList, clinicalTableList, slideTableList = ConcatCohorts_Classic(imagesPath = args.datadir_train, cliniTablePath = args.clini_dir, slideTablePath = args.slide_dir,
+                                                        label = targetLabel, reportFile = reportFile)
+        print('\nLOAD THE DATASET FOR TRAINING...\n')  
         
         labelsList = utils.CheckForTargetType(labelsList)
         
@@ -70,7 +73,7 @@ def ClassicTraining(args):
             continue
         
         if args.train_full:
-            print('\n***IT IS A FULL TRAINING FOR ' + targetLabel + ' !***\n')
+            print('IT IS A FULL TRAINING FOR ' + targetLabel + '!')
             
             train_x = []
             train_y = []
@@ -80,19 +83,32 @@ def ClassicTraining(args):
             args.split_dir = os.path.join(args.projectFolder, 'SPLITS')
             os.makedirs(args.split_dir, exist_ok = True)
             
-            patientID = np.array(patientsList)
-            train_data = GetTiles(patients = patientID, labels = labelsList, imgsList = slidesList, label= targetLabel, 
-                                  slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = False)
-    
-            train_x = list(train_data['tilePath'])
-            train_y = list(train_data[targetLabel])
+            if args.useCsv:
+                    
+                temp = args.projectFolder.split('\\')[-1]
+                print('USE PRE SELECTED TILES')
+                train_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "FULL_TRAIN.xlsx"))
                 
-            df = pd.DataFrame(list(zip(train_x, train_y)), columns =['tilePath', 'label'])
-            df.to_csv(os.path.join(args.split_dir, 'FULL_TRAIN' + '.csv'), index = False)
-            print()  
+                train_x = list(train_data['X'])
+                train_y = list(train_data['y'])
+                
+                train_data.to_csv(os.path.join(args.split_dir, 'FULL_TRAIN' + '.csv'), index = False)
+
+            else:
+                patientID = np.array(patientsList)
+                train_data = GetTiles(patients = patientID, labels = labelsList, imgsList = slidesList, label= targetLabel, 
+                                      slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = False)
+        
+                print('GENERATE NEW TILES')                   
+                train_x = list(train_data['tileAd'])
+                train_y = list(train_data[targetLabel])
+                    
+                df = pd.DataFrame(list(zip(train_x, train_y)), columns =['X', 'y'])
+                df.to_csv(os.path.join(args.split_dir, 'FULL_TRAIN' + '.csv'), index = False)
+                print()  
              
             
-            model_ft, input_size = utils.Initialize_model(args.model_name, args.num_classes, use_pretrained = True)
+            model_ft, input_size = utils.Initialize_model(args.model_name, args.num_classes, feature_extract = False, use_pretrained = True)
                 
             params = {'batch_size': args.batch_size,
                       'shuffle': True,
@@ -117,25 +133,29 @@ def ClassicTraining(args):
                     for name2, params in child.named_parameters():
                         params.requires_grad = False
             
-            print('\n*** INITIALIZE THE  OPTIMIZER***\n', end = ' ')
+            print('\nINIT OPTIMIZER ...', end = ' ')
             optimizer = utils.get_optim(model_ft, args, params = False)
+            print('DONE!')
             
             criterion = nn.CrossEntropyLoss()
-            print('\n*** START TRAINING ***', end = ' ')
+            print('\nSTART TRAINING ...', end = ' ')
             model, train_loss_history, train_acc_history, _, _ = Train_model_Classic(model = model_ft, trainLoaders = traingenerator,
                                              criterion = criterion, optimizer = optimizer, num_epochs = args.max_epochs, is_inception = (args.model_name == "inception"), 
                                              results_dir = args.result)
             
-            torch.save(model.state_dict(), os.path.join(args.projectFolder, 'RESULTS', 'MODEL_Full'))
+            #PlotTrainingLossAcc(train_loss_history, train_acc_history)
+            print('DONE!')
+
             
-            df = pd.DataFrame(list(zip(train_loss_history, train_acc_history)), columns =['train_loss_history', 'train_acc_history'])
+            torch.save(model.state_dict(), os.path.join(args.projectFolder, 'RESULTS', 'MODEL_Full'))
+            df = pd.DataFrame(list(zip(train_loss_history, train_acc_history)), 
+                              columns =['train_loss_history', 'train_acc_history'])
             
             df.to_csv(os.path.join(args.result, 'TRAIN_HISTORY_full' + '.csv'))
             
         else:
-        
-            print('\n*** IT IS A ' + str(args.k) + 'FOLD CROSS VALIDATION TRAINING FOR ' + targetLabel + '!***\n')
-            
+            print('IT IS A ' + str(args.k) + 'FOLD CROSS VALIDATION TRAINING FOR ' + targetLabel + '!')
+            print('USE PRE SELECTED TILES')
             patientID = np.array(patientsList)
             labels = np.array(labelsList)
             
@@ -154,62 +174,84 @@ def ClassicTraining(args):
                 print('START OF CROSS VALIDATION')     
                 print('**********************************************************************')                
               
-
-                testData_patientID = patientID[test_index]   
-                testData_Labels = labels[test_index]
-                
-                if not len(patientID)<50:
-                    val_index = random.choices(train_index, k = int(len(train_index) * 0.05))
-
-                    valData_patientID = patientID[val_index]
-                    valData_Labels = labels[val_index]
-                
-                train_index = [i for i in train_index if i not in val_index]
-                
-                trainData_patientID = patientID[train_index] 
-                trainData_labels = labels[train_index] 
-                
-                print('\n*** LOAD TRAIN DATASET ***\n')
-               
-                train_data = GetTiles(patients = trainData_patientID, labels = trainData_labels, imgsList = slidesList, label = targetLabel, 
-                                      slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = False, seed = args.seed)
-                
-                train_x = list(train_data['tilePath'])
-                train_y = list(train_data[targetLabel])
+                if args.useCsv:
                     
-                df = pd.DataFrame(list(zip(train_x, train_y)), columns =['tilePath', 'label'])
-                df.to_csv(os.path.join(args.split_dir, 'SPLIT_TRAIN_' + str(counter)+ '.csv'), index = False)
-                print()   
-                
-                if not len(patientID)<50:
-                    print('LOAD Validation DATASET\n')           
-                    val_data = GetTiles(patients = valData_patientID, labels = valData_Labels, imgsList = slidesList, label = targetLabel, 
-                                          slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True, seed = args.seed)    
+                    temp = args.projectFolder.split('\\')[-1]
+                    print(temp)
+                    train_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "SPLIT_TRAIN_" + str(counter) + ".xlsx"))
+                    val_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "SPLIT_VAL_" + str(counter) + ".xlsx"))
+                    test_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "SPLIT_TEST_" + str(counter) + ".xlsx"))
                     
-                    val_x = list(val_data['tilePath'])   
-                    val_y = list(val_data[targetLabel])
+                    train_x = list(train_data['X'])
+                    train_y = list(train_data['y'])
+                    val_x = list(val_data['X'])   
+                    val_y = list(val_data['y'])
+                    test_x = list(test_data['X'])
+                    test_y = list(test_data['y'])
+                    test_pid = list(test_data['pid'])
+                    
+                    train_data.to_csv(os.path.join(args.split_dir, 'SPLIT_TRAIN_' + str(counter)+ '.csv'), index = False)
+                    val_data.to_csv(os.path.join(args.split_dir, 'SPLIT_VAL_' + str(counter)+ '.csv'), index = False)    
+                    test_data.to_csv(os.path.join(args.split_dir, 'SPLIT_TEST_' + str(counter) + '.csv'), index = False)
+
+
+                else:
+                    print('GENERATE NEW TILES')
+                    testData_patientID = patientID[test_index]   
+                    testData_Labels = labels[test_index]
+                    
+                    if not len(patientID)<50:
+                        val_index = random.choices(train_index, k = int(len(train_index) * 0.05))
+    
+                        valData_patientID = patientID[val_index]
+                        valData_Labels = labels[val_index]
+                    
+                    train_index = [i for i in train_index if i not in val_index]
+                    
+                    trainData_patientID = patientID[train_index] 
+                    trainData_labels = labels[train_index] 
+                    
+                    print('\nLOAD TRAIN DATASET\n')
+                   
+                    train_data = GetTiles(patients = trainData_patientID, labels = trainData_labels, imgsList = slidesList, label = targetLabel, 
+                                          slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = False, seed = args.seed)
+                    
+                    train_x = list(train_data['tileAd'])
+                    train_y = list(train_data[targetLabel])
                         
-                    df = pd.DataFrame(list(zip(val_x, val_y)), columns =['tilePath', 'label'])
-                    df.to_csv(os.path.join(args.split_dir, 'SPLIT_VAL_' + str(counter)+ '.csv'), index = False)    
-                    print()
-                
-                print('LOAD TEST DATASET')  
-                test_data = GetTiles(patients = testData_patientID, labels = testData_Labels, imgsList = slidesList, label = targetLabel, 
-                                      slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True, seed = args.seed)  
-                
-                test_x = list(test_data['tilePath'])
-                test_y = list(test_data[targetLabel])
-                test_pid = list(test_data['PATIENT'])
+                    df = pd.DataFrame(list(zip(train_x, train_y)), columns =['X', 'y'])
+                    df.to_csv(os.path.join(args.split_dir, 'SPLIT_TRAIN_' + str(counter)+ '.csv'), index = False)
+                    print()   
                     
-                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns = ['PATIENT', 'tilePath', 'label'])
-                df.to_csv(os.path.join(args.split_dir, 'SPLIT_TEST_' + str(counter) + '.csv'), index = False)
+                    if not len(patientID)<50:
+                        print('LOAD Validation DATASET\n')           
+                        val_data = GetTiles(patients = valData_patientID, labels = valData_Labels, imgsList = slidesList, label = targetLabel, 
+                                              slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True, seed = args.seed)    
+                        
+                        val_x = list(val_data['tileAd'])   
+                        val_y = list(val_data[targetLabel])
+                            
+                        df = pd.DataFrame(list(zip(val_x, val_y)), columns =['X', 'y'])
+                        df.to_csv(os.path.join(args.split_dir, 'SPLIT_VAL_' + str(counter)+ '.csv'), index = False)    
+                        print()
+                    
+                    print('LOAD TEST DATASET')  
+                    test_data = GetTiles(patients = testData_patientID, labels = testData_Labels, imgsList = slidesList, label = targetLabel, 
+                                          slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True, seed = args.seed)  
+                    
+                    test_x = list(test_data['tileAd'])
+                    test_y = list(test_data[targetLabel])
+                    test_pid = list(test_data['patientID'])
+                        
+                    df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns = ['pid', 'X', 'y'])
+                    df.to_csv(os.path.join(args.split_dir, 'SPLIT_TEST_' + str(counter) + '.csv'), index = False)
                 
                 print()
                 print("=========================================")
                 print("====== K FOLD VALIDATION STEP => %d =======" % (counter))
                 print("=========================================")
                 
-                model_ft, input_size = utils.Initialize_model(args.model_name, args.num_classes, use_pretrained = True)
+                model_ft, input_size = utils.Initialize_model(args.model_name, args.num_classes, feature_extract = args.feature_extract, use_pretrained = True)
                 
                 params = {'batch_size': args.batch_size,
                           'shuffle': True,
@@ -259,6 +301,7 @@ def ClassicTraining(args):
                 
                 print('DONE!')
                 
+                #PlotTrainingLossAcc(train_loss_history, train_acc_history, val_acc_history, val_loss_history, counter)
                 args.result = os.path.join(args.projectFolder, 'RESULTS')
                 os.makedirs(args.result, exist_ok = True)
                 
@@ -280,11 +323,11 @@ def ClassicTraining(args):
                 
                 scores = pd.DataFrame.from_dict(scores)
 
-                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['PATIENT', 'tilePath', 'label'])
+                df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['patientID', 'X', 'y'])
                 df = pd.concat([df, scores], axis=1)
                 
-                df.to_csv(os.path.join(args.result, 'TEST_RESULT_TILE_SCORES_' + str(counter) + '.csv'), index = False)
-                CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_TILE_SCORES_' + str(counter) + '.csv'),
+                df.to_csv(os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(counter) + '.csv'), index = False)
+                CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(counter) + '.csv'),
                                         uniquePatients = list(set(test_pid)), target_labelDict = args.target_labelDict, resultFolder = args.result,
                                         counter = counter , clamMil = False) 
                 
@@ -292,15 +335,28 @@ def ClassicTraining(args):
                 print('')
                 counter = counter + 1
                 
-            patientScores = []
-            testResult = []
-            for i in range(args.k):
-                patientScores.append('TEST_RESULT_PATIENT_SCORES_' + str(i) + '.csv')
-                testResult.append('TEST_RESULT_TILE_SCORES_' + str(i) + '.csv')      
-                
-            CalculateTotalROC(resultsPath = args.result, results = patientScores, target_labelDict =  args.target_labelDict) 
-            MergeResultCSV(args.result, testResult)
-                
+            # sensitivity = 0.8
+            # patientScores = []
+            # testResult = []
+            # for i in range(args.k):
+            #     patientScores.append('TEST_RESULT_PATIENT_SCORES_' + str(i) + '.csv')
+            #     testResult.append('TEST_RESULT_FOLD_' + str(i) + '.csv')
+            #     #
+            # aucDict = CalculateTotalROC(resultsPath = args.result, results = patientScores,target_labelDict =  args.target_labelDict, fixedSensitivity = sensitivity)            
+            
+            # outputDf = pd.DataFrame(['AUC', 'FalsePositiveRateAt' + str(sensitivity), 'Precision_Score', 'Recal_Score', 'F1_Score', 'NegativePredictiveValue', 'T_test', 'P_Value', '95LowConficenceInterval', '95HighConfidenceInterval'])
+            # aucDict_df = pd.DataFrame.from_dict(aucDict)
+            # outputDf = pd.concat([outputDf, aucDict_df], axis=1)
+            # outputDf.to_csv(os.path.join(args.result, 'STATISTICS.csv'), index = False)
+            
+            # stats_total[targetLabel] = aucDict
+            # stats_df = pd.concat([stats_df, aucDict_df], axis = 1)
+            # MergeResultCSV(args.result, testResult)
+            #GenerateHighScoreTiles(totalPatientResultPath = os.path.join(args.result, 'TEST_RESULTS_PATIENT_SCORES_TOTAL.csv'),
+                                   #totalResultPath = os.path.join(args.result, 'TEST_RESULT_TOTAL.csv'),
+                                  #numHighScorePetients =  args.numHighScorePatients, numHighScoreBlocks = args.numHighScoreBlocks, targetColName = 'MSIH')
+    
+    return stats_total, stats_df                 
 ##############################################################################
 
 

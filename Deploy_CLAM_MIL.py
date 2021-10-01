@@ -27,9 +27,8 @@ from eval.eval_Classic import CalculatePatientWiseAUC
 ##############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-
-parser.add_argument('--adressExp', type = str, default = r"D:\ARCHITECTURE PROJECT\RCC\AACHEN_RCC_CLAM_TestFull.txt", help = 'Adress to the experiment File')
-parser.add_argument('--modelAdr', type = str, default = r"D:\ARCHITECTURE PROJECT\RCC\TCGA_RCC_CLAM_TrainFull_RCC_Subtype\RESULTS\s_0_checkpoint.pt", help = 'Adress to the selected model')
+parser.add_argument('--adressExp', type = str, default = r"C:\Users\Administrator\sciebo\deepHistology\labMembers\Narmin\Architecture Project\RCC\AACHEN_RCC_CLAM_TestFull.txt", help = 'Adress to the experiment File')
+parser.add_argument('--modelAdr', type = str, default = r"C:\Users\Administrator\sciebo\deepHistology\labMembers\Narmin\Architecture Project\RCC\TCGA_RCC_CLAM_TrainFull_RCC_Subtype\RESULTS\s_0_checkpoint.pt", help = 'Adress to the selected model')
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -67,7 +66,7 @@ if __name__ == '__main__':
         
     print('\nLoad the DataSet...')   
 
-    lengthList , args.csvPath, labelList = SortClini_SlideTables(imagesPath = args.feat_dir, cliniTablePath = args.clini_dir, slideTablePath = args.slide_dir,
+    args.csvPath, labelList = SortClini_SlideTables(imagesPath = args.feat_dir, cliniTablePath = args.clini_dir, slideTablePath = args.slide_dir,
                                     label = args.target_label, outputPath = args.projectFolder, reportFile = reportFile, csvName = args.csv_name)
 
 
@@ -80,7 +79,7 @@ if __name__ == '__main__':
     args.target_labelDict = dict(zip(le.classes_, range(len(le.classes_))))        
 
     
-    print('\n*** Load the DataSet ***\n')  
+    print('\nLoad the DataSet...')  
     
     feat_dir = args.feat_dir[0]
     dataset = Generic_MIL_Dataset(csv_path = args.csvPath,
@@ -103,7 +102,7 @@ if __name__ == '__main__':
     args.split_dir = os.path.join(args.projectFolder, 'SPLITS')
     os.makedirs(args.split_dir, exist_ok=True)
     
-    dataset.Create_splits(k = 1, val_num = [0] * args.num_classes, test_num =[0] * args.num_classes, label_frac = lf)
+    dataset.Create_splits(k = 1, val_num = [0] * args.num_classes, test_num = [0] * args.num_classes, label_frac = lf)
     i = 0
     dataset.Set_splits()
     descriptor_df = dataset.Test_split_gen(return_descriptor = True, reportFile = reportFile, fold = i)
@@ -166,19 +165,21 @@ if __name__ == '__main__':
     case_ids = test_loader.dataset.slide_data['case_id']
     patient_results = {}
 
-    for batch_idx, (data, label) in tqdm(enumerate(test_loader)):
+    for batch_idx, (data, label, coord) in tqdm(enumerate(test_loader)):
         data, label = data.to(device), label.to(device)
         slide_id = slide_ids.iloc[batch_idx]
         case_id = case_ids.iloc[batch_idx]
         with torch.no_grad():
-            logits, Y_prob, Y_hat, _, _ = model(data)
-
+           logits, Y_prob, Y_hat, a_raw, results_dict = model(data)
+           
         acc_logger.log(Y_hat, label)
         probs = Y_prob.cpu().numpy()
         all_probs[batch_idx] = probs
         all_labels[batch_idx] = label.item()
+        tileScores = list(a_raw.cpu().detach().numpy())
+        coords = list(coord[0].cpu().detach().numpy())
         
-        patient_results.update({slide_id: {'case_id': case_id,'slide_id': slide_id, 'prob': probs, 'label': label.item()}})
+        patient_results.update({slide_id: {'case_id': case_id,'slide_id': slide_id, 'prob': probs, 'label': label.item(), 'tileScores' : tileScores, 'coords' : coords}})
         error = utils.calculate_error(Y_hat, label)
         test_error += error
 
@@ -186,7 +187,8 @@ if __name__ == '__main__':
     slide_id_test = []
     labelList_test = []
     probs_test = {}
-    
+    tileScores = {}    
+    coords = {}
     for i_temp in range(args.num_classes):
         key = utils.get_key_from_value(args.target_labelDict, i_temp)
         probs_test[key] = []
@@ -196,18 +198,27 @@ if __name__ == '__main__':
         case_id_test.append(temp['case_id'])
         slide_id_test.append(temp['slide_id'])
         labelList_test.append(temp['label'])
+        tileScores[temp['case_id']] = temp['tileScores']
+        coords[temp['case_id']] = temp['coords']
+        
         for i_temp in range(args.num_classes):
             key = utils.get_key_from_value(args.target_labelDict, i_temp)
             probs_test[key].append(temp['prob'][0, i_temp])
     
     probs_test = pd.DataFrame.from_dict(probs_test)
-                
+    tileScores = pd.DataFrame.from_dict(tileScores, orient='index')
+    coords = pd.DataFrame.from_dict(coords, orient='index')
+   
     df = pd.DataFrame(list(zip(case_id_test, slide_id_test, labelList_test)), columns =['patientID', 'X', 'y'])
     df = pd.concat([df, probs_test], axis = 1)
-    df.to_csv(os.path.join(args.result, 'TEST_RESULT_FULL_SCORES.csv'), index = False)
+    df.to_csv(os.path.join(args.result, 'TEST_RESULT_FULL_SCORES_temp.csv'), index = False)
     
-    CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_FULL_TILE_SCORES.csv'), uniquePatients = list(set(case_id_test)),
+    tileScores.to_csv(os.path.join(args.result, 'TileScores.csv'), index = True)
+    coords.to_csv(os.path.join(args.result, 'Coords.csv'), index = True)
+    
+    CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_FULL_SCORES_temp.csv'), uniquePatients = list(set(case_id_test)),
                             target_labelDict = args.target_labelDict, resultFolder = args.result, counter = 'FULL', clamMil = True)
+        
         
         
         

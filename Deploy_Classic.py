@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Created on Thu Mar 11 13:45:05 2021
 
@@ -26,8 +27,8 @@ from scipy.stats import ttest_ind
 ##############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-parser.add_argument('--adressExp', type = str, default = r"G:\Adversarial Project\BELFAST_CRC_TestFull_ResNet.txt", help = 'Adress to the experiment File')
-parser.add_argument('--modelAdr', type = str, default = r"G:\Adversarial Project\TCGA_CRC_TrainFull_ResNet_isMSIH\RESULTS\MODEL_Full", help = 'Adress to the selected model')
+parser.add_argument('--adressExp', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\TCGA_VIT_512MAX_05FREEZE_TestFull.txt", help = 'Adress to the experiment File')
+parser.add_argument('--modelAdr', type = str, default = r"D:\ARCHITECTURE PROJECT\STAD\BERN_VIT_512MAX_05FREEZE_TrainFull_EBV\RESULTS\MODEL_Full", help = 'Adress to the selected model')
 
 args = parser.parse_args()
 
@@ -38,8 +39,9 @@ print(device)
 
 if __name__ == '__main__':
         
-     
+      
     args = utils.ReadExperimentFile(args, deploy = True)
+    args.useCsv = True
 
     torch.cuda.set_device(args.gpuNo)
     random.seed(args.seed)
@@ -51,8 +53,8 @@ if __name__ == '__main__':
         
         args.target_label = targetLabel  
         args.projectFolder = utils.CreateProjectFolder(args.project_name, args.adressExp, targetLabel, args.model_name)
-        
         if os.path.exists(args.projectFolder):
+            #raise NameError('THis PROJECT IS ALREADY EXISTS!')
             continue
         else:
             os.mkdir(args.projectFolder) 
@@ -65,11 +67,12 @@ if __name__ == '__main__':
         targetLabels = args.target_labels
         
             
-        print('\n*** Load the DataSet ***\n')                      
+        print('\nLoad the DataSet...')                      
         
         patientsList, labelsList, slidesList, clinicalTableList, slideTableList = ConcatCohorts_Classic(imagesPath = args.datadir_test, cliniTablePath = args.clini_dir, slideTablePath = args.slide_dir,
                                                         label = targetLabel, reportFile = reportFile)
-                                                        
+        print('\nLOAD THE DATASET FOR TRAINING...\n')  
+        
         labelsList = utils.CheckForTargetType(labelsList)
         
         le = preprocessing.LabelEncoder()
@@ -86,21 +89,33 @@ if __name__ == '__main__':
         args.split_dir = os.path.join(args.projectFolder, 'SPLITS')
         os.makedirs(args.split_dir, exist_ok = True)
         
-        test_pid = []
-        test_x = []
-        test_y = []  
-        
-        patientID = np.array(patientsList)
-        test_data = GetTiles(patients = patientID, labels = labelsList, imgsList = slidesList, label= targetLabel, 
-                                  slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True)
-        
+        if args.useCsv:
+            print('USE PRE SELECTED TILES')
+            temp = args.projectFolder.split('\\')[-1]
+            print(temp)
+            test_data = pd.read_excel(os.path.join(r"D:\ARCHITECTURE PROJECT\STAD" , temp.replace('_VIT', '_RESNET'), "RESULTS" , "TEST_RESULT_FULL.xlsx"))
             
-        test_x = list(test_data['tilePath'])
-        test_y = list(test_data[targetLabel])
-        test_pid = list(test_data['PATIENT'])
-                            
-        df = pd.DataFrame(list(zip(test_x, test_y)), columns =['tilePAth', 'label'])
-        df.to_csv(os.path.join(args.split_dir, 'FULL_TEST'+ '.csv'), index = False)
+            test_x = list(test_data['X'])
+            test_y = list(test_data['y'])
+            test_pid = list(test_data['patientID'])
+            
+            test_data.to_csv(os.path.join(args.split_dir, 'FULL_TEST' + '.csv'), index = False)
+        else:
+            print('GENERATE NEW TILES')    
+            test_pid = []
+            test_x = []
+            test_y = []           
+            patientID = np.array(patientsList)
+            test_data = GetTiles(patients = patientID, labels = labelsList, imgsList = slidesList, label= targetLabel, 
+                                      slideTableList = slideTableList, maxBlockNum = args.maxBlockNum, test = True)
+            
+                
+            test_x = list(test_data['tileAd'])
+            test_y = list(test_data[targetLabel])
+            test_pid = list(test_data['patientID'])
+                                
+            df = pd.DataFrame(list(zip(test_x, test_y)), columns =['X', 'y'])
+            df.to_csv(os.path.join(args.split_dir, 'FULL_TEST'+ '.csv'), index = False)
             
         print()  
             
@@ -109,18 +124,19 @@ if __name__ == '__main__':
                   'shuffle': False,
                   'num_workers': 0}
         
-        model, input_size = utils.Initialize_model(args.model_name, args.num_classes, use_pretrained = True)
+        _, input_size = utils.Initialize_model(args.model_name, args.num_classes, feature_extract = args.feature_extract, use_pretrained = True)
         test_set = DatasetLoader_Classic(test_x, test_y, transform = torchvision.transforms.ToTensor, target_patch_size = input_size)           
         test_generator = torch.utils.data.DataLoader(test_set, **params)
         
-        #model = torch.load(args.modelAdr)       
-        #model = model.to(device)
+        model = torch.load(args.modelAdr)       
+        model = model.to(device)
         
-        model.load_state_dict(torch.load(args.modelAdr))       
-        model = model.to(device) 
+        # model.load_state_dict(torch.load(args.modelAdr))       
+        # model = model.to(device) 
         criterion = nn.CrossEntropyLoss()
         
-        print('\n*** START DEPLOYING ***\n')
+        print('START DEPLOYING...')
+        print('')
         
         epoch_loss, epoch_acc, predList  = Validate_model_Classic(model, test_generator, criterion)
         
@@ -132,7 +148,7 @@ if __name__ == '__main__':
         
         scores = pd.DataFrame.from_dict(scores)
             
-        df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['PATIENT', 'tilePath', 'label'])
+        df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['patientID', 'X', 'y'])
         df = pd.concat([df, scores], axis=1)
         
         df.to_csv(os.path.join(args.result, 'TEST_RESULT_FULL.csv'), index = False)

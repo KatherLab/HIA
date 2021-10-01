@@ -28,7 +28,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from scipy.stats import ttest_ind
-
 ##############################################################################
 
 def CalculatePatientWiseAUC(resultCSVPath, uniquePatients, target_labelDict, resultFolder, counter, clamMil = False):
@@ -48,11 +47,11 @@ def CalculatePatientWiseAUC(resultCSVPath, uniquePatients, target_labelDict, res
         keys_temp.remove(key)
         for pi in uniquePatients:
             patients.append(pi)
-            data_temp = data.loc[data['PATIENT'] == pi]                        
+            data_temp = data.loc[data['patientID'] == pi]                        
             data_temp = data_temp.reset_index()
             
-            y_true.append(data_temp['label'][0])
-            y_true_label.append(utils.get_key_from_value(target_labelDict, data_temp['label'][0]))
+            y_true.append(data_temp['y'][0])
+            y_true_label.append(utils.get_key_from_value(target_labelDict, data_temp['y'][0]))
                         
             if not clamMil:
                 dl_pred = np.where(data_temp[keys_temp].lt(data_temp[key], axis=0).all(axis=1), True, False)
@@ -69,7 +68,7 @@ def CalculatePatientWiseAUC(resultCSVPath, uniquePatients, target_labelDict, res
 
     y_pred_dict = pd.DataFrame.from_dict(y_pred_dict)
 
-    df = pd.DataFrame(list(zip(patients, y_true, y_true_label)), columns =['PATIENT', 'y_true', 'y_true_label'])
+    df = pd.DataFrame(list(zip(patients, y_true, y_true_label)), columns =['patients', 'y_true', 'y_true_label'])
     df = pd.concat([df, y_pred_dict], axis=1)    
     df.to_csv(os.path.join(resultFolder, 'TEST_RESULT_PATIENT_SCORES_' + str(counter) + '.csv'), index = False)
     
@@ -139,8 +138,9 @@ def perf_measure(y_actual, y_hat):
 
 ##############################################################################
 
-def CalculateTotalROC(resultsPath, results, target_labelDict):
+def CalculateTotalROC(resultsPath, results, target_labelDict, fixedSensitivity):
     
+    aucDict = {}
     totalData = []
     
     for item in results:
@@ -151,29 +151,59 @@ def CalculateTotalROC(resultsPath, results, target_labelDict):
     keys = list(target_labelDict.keys())
     
     for key in keys:
+        aucDict[key] = []
         y_pred = totalData[key]
         fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label = target_labelDict[key])
-        print('TOTAL AUC FOR target {} IN THIS DATASET IS : {} '.format(key, np.round(metrics.auc(fpr, tpr), 3)))
+        print('TOTAL AUC FOR target {} IN THIS DATASET IS : {} '.format(key, metrics.auc(fpr, tpr)))
+        aucDict[key].append( np.round(metrics.auc(fpr, tpr),2))
+        
+        f = interp1d(tpr, fpr)
+        aucDict[key].append(np.round(f(fixedSensitivity),2))
+        fpr = list(fpr)
+        thresh = thresholds[fpr.index(find_closes(fpr, np.round(f(fixedSensitivity),2)))]
+        
+        binarized_scores = [ 1 if i >= thresh else 0 for i in y_pred]
+        
+        tp, fp, tn, fn = perf_measure(y_true, binarized_scores)
+        
+        aucDict[key].append(np.round(precision_score(y_true, binarized_scores),2))
+        aucDict[key].append(np.round(recall_score(y_true, binarized_scores),2))
+        aucDict[key].append(np.round(f1_score(y_true, binarized_scores),2))
+        aucDict[key].append(np.round(tn / (tn + fn),2))
+         
+        y_pred = list(y_pred)
+        label1 = []
+        label2 = []
+        for ind, val in enumerate(y_pred):
+            if y_true[ind] == 0:
+                label1.append(val)
+            elif y_true[ind] == 1:
+                label2.append(val)
+                
+        ttest , pVal = ttest_ind(label1, label2)
+        aucDict[key].append(np.round(ttest,4))
+        aucDict[key].append(np.round(pVal,4))
+        
         auc_values = []
         nsamples = 1000
         rng = np.random.RandomState(666)
-        y_true = np.array(y_true)
+        trueLabel = np.array(y_true)
         y_pred = np.array(y_pred)
         for i in range(nsamples):
             indices = rng.randint(0, len(y_pred), len(y_pred))
-            if len(np.unique(y_pred[indices])) < 2 or np.sum(y_true[indices]) == 0:
-                continue    
-            fpr, tpr, thresholds = metrics.roc_curve(y_true[indices], y_pred[indices], pos_label = target_labelDict[key])
-            auc_values.append(metrics.auc(fpr, tpr))
+            if len(np.unique(y_pred[indices])) < 2 or np.sum(trueLabel[indices]) == 0:
+                continue        
+            auc_values.append(roc_auc_score(trueLabel[indices], y_pred[indices]))
         
         auc_values = np.array(auc_values)
         auc_values.sort()
         
-        print('Lower Confidebnce Interval : {}'.format(np.round(auc_values[int(0.05 * len(auc_values))], 3)))        
-        print('Higher Confidebnce Interval : {}'.format(np.round(auc_values[int(0.95 * len(auc_values))], 3)))
-        
-    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULTS_PATIENT_SCORES_TOTAL.csv'), index = False)
-    
+        aucDict[key].append(np.round(auc_values[int(0.05 * len(auc_values))],2))
+        aucDict[key].append(np.round(auc_values[int(0.95 * len(auc_values))] ,2)   )  
+    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULTS_PATIENT_SCORES_TOTAL.csv'))    
+    #PlotROCCurve(y_true, y_pred)
+    return aucDict
+
 ##############################################################################
 
 def find_closes(array, value):
@@ -190,7 +220,7 @@ def MergeResultCSV(resultsPath, results):
         data = pd.read_csv(os.path.join(resultsPath, item))
         totalData.append(data)
     totalData = pd.concat(totalData)
-    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_TILE_SCORES_TOTAL.csv'), index = False)
+    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_TOTAL.csv'))
 
 ##############################################################################
 

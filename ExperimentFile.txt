@@ -17,5 +17,5 @@
     "lr": 0.0001,
     "reg": 0.00001,
     "gpuNo": 0,
-    "freezeRatio": 0.5,
+    "freezeRatio": 0.5
 }

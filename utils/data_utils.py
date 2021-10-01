@@ -476,7 +476,7 @@ def GetTiles(patients, labels, imgsList, label, slideTableList, maxBlockNum, tes
                     labelsList.append(labels[index])
                 
     # WRITE THEM TO THE EXCEL FILES:
-    df = pd.DataFrame(list(zip(patinetList, tilesPathList, labelsList)), columns =['PATIENT', 'tilePath', label]) 
+    df = pd.DataFrame(list(zip(patinetList, tilesPathList, labelsList)), columns =['patientID', 'tileAd', label]) 
     
     df_temp = df.dropna()
     if test:

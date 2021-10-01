@@ -159,7 +159,7 @@ def RenameTCGASLideNamesInSlideTable(slideTablePath, imgsFolder):
 
 ###############################################################################
 
-def Initialize_model(model_name, num_classes, use_pretrained = True):
+def Initialize_model(model_name, num_classes, feature_extract, use_pretrained = True):
 
     model_ft = None
     input_size = 0
@@ -168,6 +168,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         """ Resnet18
         """
         model_ft = models.resnet18(pretrained = use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -178,6 +179,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         """ Alexnet
         """
         model_ft = models.alexnet(pretrained=use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
         input_size = 224
@@ -186,6 +188,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         """ VGG11_bn
         """
         model_ft = models.vgg11_bn(pretrained=use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
         input_size = 224
@@ -194,6 +197,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         """ VGG11_bn
         """
         model_ft = models.vgg16_bn(pretrained=use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier[6].in_features
         model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
         input_size = 224
@@ -202,6 +206,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         """ Squeezenet
         """
         model_ft = models.squeezenet1_0(pretrained=use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         model_ft.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1,1), stride=(1,1))
         model_ft.num_classes = num_classes
         input_size = 224
@@ -210,6 +215,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         """ Densenet
         """
         model_ft = models.densenet121(pretrained=use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.classifier.in_features
         model_ft.classifier = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -219,6 +225,7 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         Be careful, expects (299,299) sized images and has auxiliary output
         """
         model_ft = models.inception_v3(pretrained=use_pretrained)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         # Handle the auxilary net
         num_ftrs = model_ft.AuxLogits.fc.in_features
         model_ft.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)
@@ -230,11 +237,13 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
     elif model_name == "vit":
         
         model_ft = ViT('B_32_imagenet1k', pretrained = True)
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 384
     elif model_name == 'efficient':
         model_ft = EfficientNet.from_pretrained('efficientnet-b7')
+        Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft._fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
@@ -243,6 +252,13 @@ def Initialize_model(model_name, num_classes, use_pretrained = True):
         exit()
 
     return model_ft, input_size
+
+###############################################################################
+
+def Set_parameter_requires_grad(model, feature_extracting):
+    if feature_extracting:
+        for param in model.parameters():
+            param.requires_grad = False
 
 ###############################################################################
 
