@@ -436,7 +436,7 @@ def ConcatCohorts_Classic(imagesPath, cliniTablePath, slideTablePath,  label, re
         temp = clinicalTableList.loc[clinicalTableList['PATIENT'] == str(patientID)]
         temp.reset_index(drop=True, inplace=True)
         for slide in matchedSlides:
-            slide = slide.replace(' ', '')
+            slide = str(slide).replace(' ', '')
             if not len([s for s in imgsList if str(slide) in s]) == 0:  
                 patientsNew.append(patientID)                
                 labels.append(temp[label][0])
@@ -457,7 +457,7 @@ def GetTiles(patients, labels, imgsList, label, slideTableList, maxBlockNum, tes
         matchedSlides = [list(slideTableList['FILENAME'])[i] for i in indicies] 
     
         for slide in matchedSlides:
-            slide = slide.replace(' ', '')
+            slide = str(slide).replace(' ', '')
             sld = [it for it in imgsList if str(slide) in it]
             if not len(sld) == 0:
                 slideAdress = sld[0]

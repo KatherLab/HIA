@@ -304,7 +304,8 @@ def ReadExperimentFile(args, deploy = False):
     args.project_name = args.adressExp.split('\\')[-1].replace('.txt', '')  
     
     try:
-        datadir_train = data['dataDir_train']
+        if not deploy :
+            datadir_train = data['dataDir_train']
     except:
         raise NameError('TRAINING DATA ADRESS IS NOT DEFINED!')
                
@@ -313,33 +314,34 @@ def ReadExperimentFile(args, deploy = False):
     args.datadir_train = []
     args.feat_dir = []
     
-    for index, item in enumerate(datadir_train):
-        if os.path.exists(os.path.join(item , 'BLOCKS_NORM_MACENKO')):
-            args.datadir_train.append(os.path.join(item , 'BLOCKS_NORM_MACENKO'))
-            
-        elif os.path.exists(os.path.join(item , 'BLOCKS_NORM_VAHADANE')):
-            args.datadir_train.append(os.path.join(item , 'BLOCKS_NORM_VAHADANE'))
-            
-        elif os.path.exists(os.path.join(item , 'BLOCKS_NORM_REINHARD')):
-            args.datadir_train.append(os.path.join(item , 'BLOCKS_NORM_REINHARD'))
-            
-        elif os.path.exists(os.path.join(item , 'BLOCKS')):
-            args.datadir_train.append(os.path.join(item , 'BLOCKS'))
-        else:
-            raise NameError('NO BLOCK FOLDER FOR ' + item + ' TRAINNG IS FOUND!')
-        
-        if not deploy:
-            if os.path.isfile(os.path.join(item, item.split('\\')[-1] + '_CLINI.xlsx')):
-                 args.clini_dir.append(os.path.join(item, item.split('\\')[-1] + '_CLINI.xlsx'))
+    if not deploy :
+        for index, item in enumerate(datadir_train):
+            if os.path.exists(os.path.join(item , 'BLOCKS_NORM_MACENKO')):
+                args.datadir_train.append(os.path.join(item , 'BLOCKS_NORM_MACENKO'))
+                
+            elif os.path.exists(os.path.join(item , 'BLOCKS_NORM_VAHADANE')):
+                args.datadir_train.append(os.path.join(item , 'BLOCKS_NORM_VAHADANE'))
+                
+            elif os.path.exists(os.path.join(item , 'BLOCKS_NORM_REINHARD')):
+                args.datadir_train.append(os.path.join(item , 'BLOCKS_NORM_REINHARD'))
+                
+            elif os.path.exists(os.path.join(item , 'BLOCKS')):
+                args.datadir_train.append(os.path.join(item , 'BLOCKS'))
             else:
-                 raise NameError('NO CLINI DATA FOR ' + item + ' IS FOUND!')
-
-            if os.path.isfile(os.path.join(item, item.split('\\')[-1] + '_SLIDE.csv')):
-                 args.slide_dir.append(os.path.join(item, item.split('\\')[-1] + '_SLIDE.csv'))
-            else:
-                 raise NameError('NO SLIDE DATA FOR ' + item + ' IS FOUND!')           
-                            
-            args.feat_dir.append(os.path.join(item , 'FEATURES'))
+                raise NameError('NO BLOCK FOLDER FOR ' + item + ' TRAINNG IS FOUND!')
+            
+            if not deploy:
+                if os.path.isfile(os.path.join(item, item.split('\\')[-1] + '_CLINI.xlsx')):
+                     args.clini_dir.append(os.path.join(item, item.split('\\')[-1] + '_CLINI.xlsx'))
+                else:
+                     raise NameError('NO CLINI DATA FOR ' + item + ' IS FOUND!')
+    
+                if os.path.isfile(os.path.join(item, item.split('\\')[-1] + '_SLIDE.csv')):
+                     args.slide_dir.append(os.path.join(item, item.split('\\')[-1] + '_SLIDE.csv'))
+                else:
+                     raise NameError('NO SLIDE DATA FOR ' + item + ' IS FOUND!')           
+                                
+                args.feat_dir.append(os.path.join(item , 'FEATURES'))
                     
 
     try:

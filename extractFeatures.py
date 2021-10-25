@@ -16,6 +16,7 @@ import torch
 import torch.nn as nn
 import os
 import time
+import torchvision
 
 ##############################################################################
 
@@ -71,8 +72,19 @@ def Compute_w_loader(file_path, output_path, model, batch_size = 8, verbose = 0,
                         
 
 ##############################################################################
+    
+def load_model_weights(model, weights):
+    model_dict = model.state_dict()
+    weights = {k: v for k, v in weights.items() if k in model_dict}
+    if weights == {}:
+        print("No weight could be loaded..")
+    model_dict.update(weights)
+    model.load_state_dict(model_dict)
+    return model
 
-def ExtractFeatures(data_dir, feat_dir, batch_size, target_patch_size = -1, filterData = True):
+##############################################################################
+    
+def ExtractFeatures(data_dir, feat_dir, batch_size, target_patch_size = -1, filterData = True, self_supervised = False):
     
     print('initializing dataset')
     if filterData:
@@ -83,9 +95,21 @@ def ExtractFeatures(data_dir, feat_dir, batch_size, target_patch_size = -1, filt
     os.makedirs(feat_dir, exist_ok = True)
     
     print('loading model checkpoint')
-    model = Resnet50_baseline(pretrained = True)
-    model = model.to(device)
+    if self_supervised ==True:
+        model_path = "models/tenpercent_resnet18.ckpt"
+        model = torchvision.models.__dict__["resnet18"](pretrained=False)
+        state = torch.load(model_path, map_location="cuda:0")
+        state_dict = state["state_dict"]
+        for key in list(state_dict.keys()):
+            state_dict[key.replace("model.", "").replace("resnet.", "")] = state_dict.pop(key)
+        
+        model = load_model_weights(model, state_dict)
+        model.fc = torch.nn.Sequential()
 
+    else:
+        model = Resnet50_baseline(pretrained = True)
+        
+    model = model.to(device)
     model.eval()
     total = len(bags_dataset)
 

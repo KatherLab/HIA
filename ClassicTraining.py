@@ -151,7 +151,6 @@ def ClassicTraining(args):
             
         else:
             print('IT IS A ' + str(args.k) + 'FOLD CROSS VALIDATION TRAINING FOR ' + targetLabel + '!')
-            print('USE PRE SELECTED TILES')
             patientID = np.array(patientsList)
             labels = np.array(labelsList)
             
@@ -174,9 +173,9 @@ def ClassicTraining(args):
                     
                     temp = args.projectFolder.split('\\')[-1]
                     print(temp)
-                    train_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "SPLIT_TRAIN_" + str(counter) + ".xlsx"))
-                    val_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "SPLIT_VAL_" + str(counter) + ".xlsx"))
-                    test_data = pd.read_excel(os.path.join(r"K:\tiles_TCGA" , temp.replace('_EFFICIENT7', '_RESNET'), "SPLITS" , "SPLIT_TEST_" + str(counter) + ".xlsx"))
+                    train_data = pd.read_csv(os.path.join(r"F:\CR07_Experiments" , temp.replace('ResNet', 'VIT'), "SPLITS" , "SPLIT_TRAIN_" + str(counter) + ".csv"))
+                    val_data = pd.read_csv(os.path.join(r"F:\CR07_Experiments" , temp.replace('ResNet', 'VIT'), "SPLITS" , "SPLIT_VAL_" + str(counter) + ".csv"))
+                    test_data = pd.read_csv(os.path.join(r"F:\CR07_Experiments" , temp.replace('ResNet', 'VIT'), "SPLITS" , "SPLIT_TEST_" + str(counter) + ".csv"))
                     
                     train_x = list(train_data['X'])
                     train_y = list(train_data['y'])
@@ -322,15 +321,31 @@ def ClassicTraining(args):
                 df = pd.DataFrame(list(zip(test_pid, test_x, test_y)), columns =['patientID', 'X', 'y'])
                 df = pd.concat([df, scores], axis=1)
                 
-                df.to_csv(os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(counter) + '.csv'), index = False)
-                CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(counter) + '.csv'),
+                df.to_csv(os.path.join(args.result, 'TEST_RESULT_TILE_SCORES_' + str(counter) + '.csv'), index = False)
+                returnList = CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_TILE_SCORES_' + str(counter) + '.csv'),
                                         uniquePatients = list(set(test_pid)), target_labelDict = args.target_labelDict, resultFolder = args.result,
                                         counter = counter , clamMil = False) 
+                for item in returnList:
+                    reportFile.write(item + '\n')
+                reportFile.write('**********************************************************************' + '\n')
                 
                 print('\n############################################################\n')
                 print('')
                 counter = counter + 1
-    reportFile.close()
+                
+            patientScores = []
+            testResult = []
+            for i in range(args.k):
+                patientScores.append('TEST_RESULT_PATIENT_SCORES_' + str(i) + '.csv')
+                testResult.append('TEST_RESULT_TILE_SCORES_' + str(i) + '.csv')      
+                
+            returnList = CalculateTotalROC(resultsPath = args.result, results = patientScores, target_labelDict =  args.target_labelDict) 
+            for item in returnList:
+                reportFile.write(item + '\n')
+            reportFile.write('**********************************************************************' + '\n')
+            
+            MergeResultCSV(args.result, testResult)
+            reportFile.close()
                     
 ##############################################################################
 
