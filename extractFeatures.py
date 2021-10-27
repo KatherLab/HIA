@@ -84,7 +84,7 @@ def load_model_weights(model, weights):
 
 ##############################################################################
     
-def ExtractFeatures(data_dir, feat_dir, batch_size, target_patch_size = -1, filterData = True, self_supervised = False):
+def ExtractFeatures(data_dir, feat_dir, batch_size, target_patch_size = -1, filterData = True):
     
     print('initializing dataset')
     if filterData:
@@ -95,20 +95,8 @@ def ExtractFeatures(data_dir, feat_dir, batch_size, target_patch_size = -1, filt
     os.makedirs(feat_dir, exist_ok = True)
     
     print('loading model checkpoint')
-    if self_supervised ==True:
-        model_path = "models/tenpercent_resnet18.ckpt"
-        model = torchvision.models.__dict__["resnet18"](pretrained=False)
-        state = torch.load(model_path, map_location="cuda:0")
-        state_dict = state["state_dict"]
-        for key in list(state_dict.keys()):
-            state_dict[key.replace("model.", "").replace("resnet.", "")] = state_dict.pop(key)
-        
-        model = load_model_weights(model, state_dict)
-        model.fc = torch.nn.Sequential()
-
-    else:
-        model = Resnet50_baseline(pretrained = True)
-        
+  
+    model = Resnet50_baseline(pretrained = True)        
     model = model.to(device)
     model.eval()
     total = len(bags_dataset)
