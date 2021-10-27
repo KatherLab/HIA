@@ -50,7 +50,7 @@ def ClamMILTraining(args):
             imgs = os.listdir(args.datadir_train[0])
             imgs = [os.path.join(args.datadir_train[0], i) for i in imgs]
                         
-            ExtractFeatures(data_dir = imgs, feat_dir = args.feat_dir, batch_size = args.batch_size, target_patch_size = -1, filterData = True,self_supervised = args.self_supervised)
+            ExtractFeatures(data_dir = imgs, feat_dir = args.feat_dir, batch_size = args.batch_size, target_patch_size = -1, filterData = True)
         
         
         
