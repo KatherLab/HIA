@@ -102,11 +102,6 @@ def ClamMILTraining(args):
                                                                          
         else:
             
-            all_test_auc = []
-            all_val_auc = []
-            all_test_acc = []
-            all_val_acc = [] 
-            
             folds = args.k
             kf = StratifiedKFold(n_splits = folds, random_state = args.seed, shuffle = True)
             kf.get_n_splits(patientList, labelsList)
@@ -124,7 +119,7 @@ def ClamMILTraining(args):
                 
                 testData_patientID = patientList[test_index]   
                 print(len(testData_patientID))
-                val_index = random.choices(train_index, k = int(len(train_index) * 0.05))
+                val_index = random.choices(train_index, k = int(len(train_index) * 0.5))
 
                 valData_patientID = patientList[val_index]
                 
@@ -134,19 +129,14 @@ def ClamMILTraining(args):
                 
                 df = pd.DataFrame({'train': pd.Series(trainData_patientID), 'test': pd.Series(testData_patientID), 'val' : pd.Series(valData_patientID)})
                 df.to_csv(os.path.join(args.split_dir, 'splits_{}.csv'.format(i)))
+                                               
                 
                 train_dataset, val_dataset, test_dataset = dataset.Return_splits(from_id = False, csv_path = args.split_dir + '//splits_{}.csv'.format(i))  
                 
                 datasets = (train_dataset, val_dataset, test_dataset)
-                test_auc, val_auc, test_acc, val_acc, patient_results  = Train_MIL_CLAM(datasets, i, args)
-                
-                all_test_auc.append(test_auc)
-                all_val_auc.append(val_auc)
-                all_test_acc.append(test_acc)
-                all_val_acc.append(val_acc)
-                
-                #write results to pkl
-                
+                patient_results, aucList  = Train_MIL_CLAM(datasets = datasets, cur = i, args = args)
+                aucs.append(aucList)
+                                            
                 case_id_test = []
                 slide_id_test = []
                 labelList_test = []
@@ -170,9 +160,12 @@ def ClamMILTraining(args):
                     
                 df = pd.DataFrame(list(zip(case_id_test, slide_id_test, labelList_test)), columns =['PATIENT', 'slideName', 'label'])
                 df = pd.concat([df, probs_test], axis = 1)
-                df.to_csv(os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(i) + '.csv'), index = False)
+                df.to_csv(os.path.join(args.result, 'TEST_RESULT_SLIDE_BASED_FOLD_' + str(i) + '.csv'), index = False)
     
-                returnList = CalculatePatientWiseAUC(os.path.join(args.result, 'TEST_RESULT_FOLD_' + str(i) + '.csv'), list(set(case_id_test)), args.target_labelDict, args.result, i, clamMil = True)
+                returnList = CalculatePatientWiseAUC(resultCSVPath = os.path.join(args.result, 'TEST_RESULT_SLIDE_BASED_FOLD_' + str(i) + '.csv'), uniquePatients = list(set(case_id_test)), 
+                                                     target_labelDict = args.target_labelDict, 
+                                                     resultFolder = args.result, counter = i, clamMil = True)
+                                
                 for item in returnList:
                     reportFile.write(item + '\n')
                 reportFile.write('**********************************************************************' + '\n')
@@ -181,8 +174,8 @@ def ClamMILTraining(args):
             patientScores = []
             testResult = []
             for i in range(args.k):
-                patientScores.append('TEST_RESULT_PATIENT_SCORES_' + str(i) + '.csv')
-                testResult.append('TEST_RESULT_FOLD_' + str(i) + '.csv')
+                patientScores.append('TEST_RESULT_PATIENT_BASED_FOLD_' + str(i) + '.csv')
+                testResult.append('TEST_RESULT_SLIDE_BASED_FOLD_' + str(i) + '.csv')
                 
             returnList = CalculateTotalROC(args.result, patientScores, args.target_labelDict)
             for item in returnList:
@@ -190,7 +183,6 @@ def ClamMILTraining(args):
             reportFile.write('**********************************************************************' + '\n')
             
             MergeResultCSV(args.result, testResult)
-
 ##############################################################################   
     
     
