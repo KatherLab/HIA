@@ -124,7 +124,7 @@ def SortClini_SlideTables(imagesPath, cliniTablePath, slideTablePath, label, out
     data[label] = labelList
              
     data.to_csv(os.path.join(outputPath, csvName + '.csv'),  index = False)
-    return lengthList, os.path.join(outputPath, csvName + '.csv'), labelList
+    return patientList, os.path.join(outputPath, csvName + '.csv'), labelList
 
 
 ##############################################################################
