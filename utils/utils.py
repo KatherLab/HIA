@@ -23,59 +23,21 @@ import warnings
 from efficientnet_pytorch import EfficientNet
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-##############################################################################
-
-def Collate_features(batch):
-    
-    img = torch.cat([item[0] for item in batch], dim = 0)
-    coords = np.vstack([item[1] for item in batch])
-    return  [img, coords]
            
 ##############################################################################
 
-def CreateProjectFolder(ExName, ExAdr, targetLabel, model_name):
+def CreateProjectFolder(ExName, ExAdr, targetLabel, model_name, repeat = None):
 
     outputPath = ExAdr.split('\\')
     outputPath = outputPath[:-1]
     outputPath[0] = outputPath[0] + '\\'
     outputPath_root = os.path.join(*outputPath)
-    outputPath = os.path.join(outputPath_root, ExName + '_' + targetLabel)
-       
+    if repeat:
+        outputPath = os.path.join(outputPath_root, ExName + '_' + targetLabel + '_' + str(repeat))
+    else:
+        outputPath = os.path.join(outputPath_root, ExName + '_' + targetLabel)
     return outputPath
-
-##############################################################################
-
-def Seed_torch(device, seed=7):    
-    random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if device.type == 'cuda':
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed) # if you are using multi-GPU.
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-          
-##############################################################################
-       
-#def nth(iterator, n, default=None):
-	#if n is None:
-		#return collections.deque(iterator, maxlen=0)
-	#else:
-		#return next(islice(iterator,n, None), default)
-        
-##############################################################################
-        
-def Initialize_weights(module):
-	for m in module.modules():
-		if isinstance(m, nn.Linear):
-			nn.init.xavier_normal_(m.weight)
-			m.bias.data.zero_()
-		
-		elif isinstance(m, nn.BatchNorm1d):
-			nn.init.constant_(m.weight, 1)
-			nn.init.constant_(m.bias, 0)       
+   
         
 ##############################################################################
        
@@ -112,7 +74,27 @@ def get_optim(model, args, params = False):
     return optimizer
 
 ##############################################################################
+    
+def Initialize_weights(module):
+	for m in module.modules():
+		if isinstance(m, nn.Linear):
+			nn.init.xavier_normal_(m.weight)
+			m.bias.data.zero_()
+		
+		elif isinstance(m, nn.BatchNorm1d):
+			nn.init.constant_(m.weight, 1)
+			nn.init.constant_(m.bias, 0) 
 
+##############################################################################
+            
+def Collate_features(batch):
+    
+    img = torch.cat([item[0] for item in batch], dim = 0)
+    coords = np.vstack([item[1] for item in batch])
+    return  [img, coords]
+
+##############################################################################
+            
 def calculate_error(Y_hat, Y):
     
 	error = 1. - Y_hat.float().eq(Y.float()).float().mean().item()
@@ -164,78 +146,21 @@ def Initialize_model(model_name, num_classes, feature_extract, use_pretrained = 
     model_ft = None
     input_size = 0
 
-    if model_name == "resnet":
-        """ Resnet18
-        """
+    if model_name == "resnet18":
         model_ft = models.resnet18(pretrained = use_pretrained)
         Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
         model_ft.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
-        
-        #input_size = 512
-        
-    elif model_name == "alexnet":
-        """ Alexnet
-        """
-        model_ft = models.alexnet(pretrained=use_pretrained)
-        Set_parameter_requires_grad(model_ft, feature_extract)
-        num_ftrs = model_ft.classifier[6].in_features
-        model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
-        input_size = 224
 
-    elif model_name == "vgg":
-        """ VGG11_bn
-        """
-        model_ft = models.vgg11_bn(pretrained=use_pretrained)
+    elif model_name == "resnet50":
+        model_ft = models.resnet50(pretrained = use_pretrained)
         Set_parameter_requires_grad(model_ft, feature_extract)
-        num_ftrs = model_ft.classifier[6].in_features
-        model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
-        input_size = 224
-        
-    elif model_name == "vgg16":
-        """ VGG11_bn
-        """
-        model_ft = models.vgg16_bn(pretrained=use_pretrained)
-        Set_parameter_requires_grad(model_ft, feature_extract)
-        num_ftrs = model_ft.classifier[6].in_features
-        model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
-        input_size = 224
-        
-    elif model_name == "squeezenet":
-        """ Squeezenet
-        """
-        model_ft = models.squeezenet1_0(pretrained=use_pretrained)
-        Set_parameter_requires_grad(model_ft, feature_extract)
-        model_ft.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1,1), stride=(1,1))
-        model_ft.num_classes = num_classes
-        input_size = 224
-
-    elif model_name == "densenet":
-        """ Densenet
-        """
-        model_ft = models.densenet121(pretrained=use_pretrained)
-        Set_parameter_requires_grad(model_ft, feature_extract)
-        num_ftrs = model_ft.classifier.in_features
-        model_ft.classifier = nn.Linear(num_ftrs, num_classes)
-        input_size = 224
-
-    elif model_name == "inception":
-        """ Inception v3
-        Be careful, expects (299,299) sized images and has auxiliary output
-        """
-        model_ft = models.inception_v3(pretrained=use_pretrained)
-        Set_parameter_requires_grad(model_ft, feature_extract)
-        # Handle the auxilary net
-        num_ftrs = model_ft.AuxLogits.fc.in_features
-        model_ft.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)
-        # Handle the primary net
         num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs,num_classes)
-        input_size = 299
-        
-    elif model_name == "vit":
-        
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
+        input_size = 224
+                
+    elif model_name == "vit":        
         model_ft = ViT('B_32_imagenet1k', pretrained = True)
         Set_parameter_requires_grad(model_ft, feature_extract)
         num_ftrs = model_ft.fc.in_features
@@ -249,8 +174,6 @@ def Initialize_model(model_name, num_classes, feature_extract, use_pretrained = 
         input_size = 224
     else:
         print("Invalid model name, exiting...")
-        exit()
-
     return model_ft, input_size
 
 ###############################################################################
@@ -261,37 +184,26 @@ def Set_parameter_requires_grad(model, feature_extracting):
             param.requires_grad = False
 
 ###############################################################################
-
- 
-#path = r'D:\CRC\TCGA-CRC-DX\FEATURES'
-#pathContent = os.listdir(path)
-
-#notptFiles = [i for i in pathContent if not '.pt' in i]
-#for i in notptFiles:
-    #temp = i.split('.')[0]
-    #os.rename(os.path.join(path, temp +'.pt'), os.path.join(path, i + '.pt'))
+            
+def intersection(lst1, lst2): 
+    lst3 = [value for value in lst1 if value in lst2] 
+    return lst3 
 
 ###############################################################################    
 
-def Summarize_Classic(args, labels, reportFile):
+def Summarize(args, labels, reportFile):
     
-    print("label column: {}".format(args.target_label))
-    reportFile.write("label column: {}".format(args.target_label) + '\n')
-    
-    print("label dictionary: {}".format(args.target_labelDict))
-    reportFile.write("label dictionary: {}".format(args.target_labelDict) + '\n')
-    
-    print("number of classes: {}".format(args.num_classes))
-    reportFile.write("number of classes: {}".format(args.num_classes) + '\n')
-    
+    print("label column: {}\n".format(args.target_label))
+    reportFile.write("label column: {}".format(args.target_label) + '\n')    
+    print("label dictionary: {}\n".format(args.target_labelDict))
+    reportFile.write("label dictionary: {}".format(args.target_labelDict) + '\n')    
+    print("number of classes: {}\n".format(args.num_classes))
+    reportFile.write("number of classes: {}".format(args.num_classes) + '\n')    
     for i in range(args.num_classes):
-        print('Patient-LVL; Number of samples registered in class %d: %d' % (i, labels.count(i)))
-        reportFile.write('Patient-LVL; Number of samples registered in class %d: %d' % (i, labels.count(i)) + '\n')
-    
-        
-    print('##############################################################\n')
-    reportFile.write('**********************************************************************'+ '\n')
-
+        print('Patient-LVL; Number of samples registered in class %d: %d\n' % (i, labels.count(i)))
+        reportFile.write('Patient-LVL; Number of samples registered in class %d: %d' % (i, labels.count(i)) + '\n')           
+    print('-' * 30 + '\n')
+    reportFile.write('-' * 30 + '\n')
 
 ###############################################################################
 
@@ -348,7 +260,7 @@ def ReadExperimentFile(args, deploy = False):
         datadir_test = data['dataDir_test']
     except:
         if not deploy:
-            warnings.warn('TESTING DATA ADRESS IS NOT DEFINED!')   
+            print('TESTING DATA ADRESS IS NOT DEFINED!\n')   
         else:
             raise NameError('TESTING DATA ADRESS IS NOT DEFINED!')   
     if deploy:
@@ -382,193 +294,228 @@ def ReadExperimentFile(args, deploy = False):
         args.target_labels = data['targetLabels']
     except:
         raise NameError('TARGET LABELS ARE NOT DEFINED!')
-
-    
-    try:
-        args.maxBlockNum = data['maxNumBlocks']
-    except:
-        warnings.warn('MAX NUMBER OF BLOCKS IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 1000')   
-        args.maxBlockNum = 1000
     
     try:
         args.max_epochs = data['epochs']
     except:
-        warnings.warn('EPOCH NUMBER IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 5')   
-        args.max_epochs = 5        
+        print('EPOCH NUMBER IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 5\n') 
+        print('-' * 30)
+        args.max_epochs = 8        
 
     try:
-        args.max_epochs = int(data['epochs'])
+        args.numPatientToUse = data['numPatientToUse']
     except:
-        warnings.warn('EPOCH NUMBER IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 5')   
-        args.max_epochs = 5  
+        print('NUMBER OF PATIENTS TO USE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : ALL\n') 
+        print('-' * 30)
+        args.numPatientToUse = 'ALL'     
 
     try:
         args.k = int(data['k'])   
     except:
-        warnings.warn('NUMBER OF K FOLD CROSS ENTROPY IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 3')   
+        print('NUMBER OF K FOLD CROSS ENTROPY IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 3\n')   
+        print('-' * 30)
         args.k = 3 
         
     try:
         args.seed = int(data['seed']) 
     except:
-        warnings.warn('SEED IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 1')   
+        print('SEED IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 1\n')   
+        print('-' * 30)
         args.seed = 1    
         
     try:
         args.model_name = data['modelName']
     except:
-        warnings.warn('MODEL NAME IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : resnet')   
-        args.model_name = 'resnet'    
+        print('MODEL NAME IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : resnet18\n')  
+        print('-' * 30)
+        args.model_name = 'resnet18'    
 
     try:
         args.opt = data['opt']
     except:
-        warnings.warn('OPTIMIZER IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : adam')   
+        print('OPTIMIZER IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : adam\n') 
+        print('-' * 30)
         args.opt = 'adam'
         
     try:
         args.lr = data['lr']
     except:
-        warnings.warn('LEARNING RATE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0.0001')   
+        print('LEARNING RATE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 0.0001\n')
+        print('-' * 30)
         args.lr = 0.0001  
-    
+   
     try:
         args.reg = data['reg']
     except:
-        warnings.warn('DECREASE RATE OF LR IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0.00001')   
-        args.lr = 0.00001     
-        
+        print('DECREASE RATE OF LR IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 0.00001\n')   
+        print('-' * 30)
+        args.reg = 0.00001             
     try:
         args.batch_size = data['batchSize']
           
     except:
-        warnings.warn('BATCH SIZE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 64')   
+        print('BATCH SIZE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 64\n')
+        print('-' * 30)
         args.batch_size = 64
         
-    if args.model_name == 'clam_sb' or args.model_name == 'clam_mb' or args.model_name == 'mil':
+    if deploy:        
+        try:
+            args.numHighScorePatients = data['numHighScorePatients']
+              
+        except:
+            print('NUMBER OF HIGH SCORE PATIENTS IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 5\n')  
+            print('-' * 30)
+            args.numHighScorePatients = 5
+    
+        try:
+            args.numHighScoreTiles = data['numHighScoreTiles']
+              
+        except:
+            print('NUMBER OF HIGH SCORE TILES IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 5\n')
+            print('-' * 30)
+            args.numHighScoreTiles = 5   
+            
+    if args.model_name == 'clam_sb' or args.model_name == 'clam_mb' or args.model_name == 'mil' or args.model_name == 'attmil':
         args.useClassicModel = False
-        args.batch_size = 1
     else:
         args.useClassicModel = True
-    try:
-        args.freeze_Ratio = data['freezeRatio']
-    except:
-        warnings.warn('FREEZE RATIO IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0.5')   
-        args.freeze_Ratio = 0.5
+
+    if args.model_name == 'clam_sb' or args.model_name == 'clam_mb' or args.model_name == 'mil':
+        args.batch_size = 1
 
     try:
         args.train_full = MakeBool(data['trainFull'])
     except:
-        warnings.warn('TRAIN FULL VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : False')   
-        args.train_full = False
+        print('TRAIN FULL VALUE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : False\n')  
+        print('-' * 30)
+        args.train_full = False 
     try:
-         args.gpuNo = int(data['gpuNo'])  
+         args.repeatExperiment = int(data['repeatExperiment'])  
     except:
-        warnings.warn('GPU ID VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0')   
-        args.gpuNo = 0  
-    try:
-        args.numHighScorePatients = int(data['numHighScorePatients'])
-    except:
-        warnings.warn('THE NUMBER OF PATIENTS FOR HIGH SCORE TILES IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 10')   
-        args.numHighScorePatients = 10
+        print('REPEAT EXPERIEMNT NNUmBER IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : 1\n')  
+        print('-' * 30)
+        args.repeatExperiment = 1 
         
     try:
-        args.numHighScoreBlocks = int(data['numHighScoreBlocks'])
+         args.minNumBlocks = int(data['minNumBlocks'])  
     except:
-        warnings.warn('THE NUMBER OF HIGH SCORE TILES FOR PER PATIENT IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 10')   
-        args.numHighScoreBlocks = 20  
+        print('MIN NUMBER OF BLOCKS IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : 0\n') 
+        print('-' * 30)
+        args.minNumBlocks = 0
         
-    
-    if args.model_name == 'clam_sb' or args.model_name == 'clam_mb' or args.model_name == 'mil':        
+    try:
+        args.early_stopping = MakeBool(data['earlyStop'])
+    except:
+        print('EARLY STOPIING VALUE IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : TRUE\n')  
+        print('-' * 30)
+        args.early_stopping = True  
+        
+    if  args.early_stopping:        
+        try:
+            args.minEpochToTrain = data['minEpochToTrain']
+        except:
+            print('MIN NUMBER OF EPOCHS TO TRAIN IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : 10\n')   
+            print('-' * 30)
+            args.minEpochToTrain = 10 
+         
+        try:
+            args.patience = data['patience']
+        except:
+            print('PATIENCE VALUE FOR EARLY STOPPING IS NOT DEFINED!\n DEFAULT VALUE WILL BE USED : 10\n') 
+            print('-' * 30)
+            args.patience = 10 
+            
+    if not args.model_name in ['clam_sb', 'clam_mb', 'mil', 'attmil']:
+        try:
+            args.freeze_Ratio = data['freezeRatio']
+        except:
+            print('FREEZE RATIO IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : 0.5')   
+            print('-' * 30)
+            args.freeze_Ratio = 0.5
+        try:
+            args.maxBlockNum = data['maxNumBlocks']
+        except:
+            print('MAX NUMBER OF BLOCKS IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 200\n') 
+            print('-' * 30)
+            args.maxBlockNum = 200
+        try:
+             args.gpuNo = int(data['gpuNo'])  
+        except:
+            print('GPU ID VALUE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 0\n')  
+            print('-' * 30)
+            args.gpuNo = 0  
+        
+    if args.model_name in ['clam_sb', 'clam_mb', 'mil']:
+        
         try:
             args.bag_loss = data['bagLoss']
         except:
-            warnings.warn('BAG LOSS IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : ce')   
-            args.bag_loss = 'ce'
-        try:
-            args.inst_loss = data['instanceLoss']
-        except:
-            warnings.warn('INSTANCE LOSS IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : svm')   
-            args.inst_loss = 'svm'         
-        try:
-            args.log_data = MakeBool(data['logData'])
-        except:
-            warnings.warn('LOG DATA VALUEIS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : True')   
-            args.log_data = True            
+            print('BAG LOSS IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : ce\n')  
+            print('-' * 30)
+            args.bag_loss = 'ce'   
         try:
             args.drop_out = MakeBool(data['dropOut'])
         except:
-            warnings.warn('DROP OUT VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : True')   
-            args.drop_out = True            
+            print('DROP OUT VALUE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : True\n') 
+            print('-' * 30)
+            args.drop_out = True 
         try:
             args.weighted_sample = MakeBool(data['weightedSample'])
         except:
-            warnings.warn('WEIGHTED SAMPLE VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : FALSE')   
-            args.weighted_sample = False              
+            print('WEIGHTED SAMPLE VALUE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : FALSE\n')   
+            print('-' * 30)
+            args.weighted_sample = False 
+            
+    if args.model_name in ['clam_sb', 'clam_mb', 'mil', 'attmil']:            
         try:
-            args.early_stopping = MakeBool(data['earlyStop'])
+            args.extractFeature = MakeBool(data['extractFeature'])
         except:
-            warnings.warn('EARLY STOPIING VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : TRUE')   
-            args.weighted_sample = True             
+            print('EXTRACT FEATURE VALUE IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : FALSE\n')  
+            print('-' * 30)
+            args.extractFeature = False  
+            
+    if args.model_name in ['clam_sb', 'clam_mb']:              
+        try:
+            args.inst_loss = data['instanceLoss']
+        except:
+            print('INSTANCE LOSS IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : svm\n')  
+            print('-' * 30)
+            args.inst_loss = 'svm'                         
         try:
             args.model_size = data['modelSize']
         except:
-            warnings.warn('MODEL SIZE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : small')   
-            args.model_size = 'small'              
+            print('MODEL SIZE IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : small\n') 
+            print('-' * 30)
+            args.model_size = 'small' 
+             
         try:
             args.B = int(data['B'])
         except:
-            warnings.warn('VALUE OF SAMPLES IN A BAG IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 8')   
-            args.B = data['B']            
+            print('VALUE OF SAMPLES IN A BAG IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : 8\n') 
+            print('-' * 30)
+            args.B = 8 
+            
         try:
             args.no_inst_cluster = MakeBool(data['noInstanceCluster'])
         except:
-            warnings.warn('NO INSTANCE CLUSTER IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : False')   
-            args.no_inst_cluster = False                
+            print('NO INSTANCE CLUSTER IS NOT DEFINED! \nDEFAULT VALUE WILL BE USED : FALSE\n')  
+            print('-' * 30)
+            args.no_inst_cluster = False  
+              
         try:
             args.bag_weight = float(data['bagWeight'])  
         except:
-            warnings.warn('BAG WEIGHT IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : 0.7')   
+            print('BAG WEIGHT IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : 0.7\n')  
+            print('-' * 30)
             args.bag_weight = 0.7      
-        try:
-            args.feature_extract = MakeBool(data['extractFeature'])
-        except:
-            warnings.warn('EXTRACT FEATURE VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : False')   
-            args.bag_weight = 0.7   
             
         try:
-            args.normalize_targetNum = MakeBool(data['normalizeTargetPopulation'])
+            args.subtyping = MakeBool(data['subtyping'])
         except:
-            warnings.warn('NORMALIZE TAGER NUMBERS VALUE IS NOT DEFINED! \n DEFAULT VALUE WILL BE USED : False')   
-            args.normalize_targetNum = False
-        args.subtyping = False
-        args.testing = False            
-  
-
+            print('EXTRACT Subtyping VALUE IS NOT DEFINED!\nDEFAULT VALUE WILL BE USED : FALSE\n')  
+            print('-' * 30)
+            args.subtyping = False
     return args
-
-###############################################################################
-
-def GetPatintsVsLabels(x, y, targetLabel):
-    labels = []
-    tiles = list(x)
-    tiles_unique = [i.split('\\') [-1]  for i in tiles]
-    #tiles_unique = list(set(tiles_unique))
-    tiles_unique = [i.split('.')[0] for i in tiles_unique]
-    tiles_unique = ['-'.join(i.split('-')[0:3]) for i in tiles_unique]
-    
-    patientID = list(set(tiles_unique)) 
-
-    data = pd.DataFrame(list(zip(tiles_unique, x, y)), 
-                          columns =['patientID', 'tileAd',targetLabel ])
-    for i in patientID:
-        for j in tiles:
-            if i in j:
-                index = tiles.index(j)
-                continue
-        labels.append(y[index])
-        
-    return data, patientID, labels
 
 
 ###############################################################################
@@ -580,12 +527,6 @@ def MakeBool(value):
     else:
         return False
     
-###############################################################################
-
-def intersection(lst1, lst2): 
-    lst3 = [value for value in lst1 if value in lst2] 
-    return lst3 
-
 ###############################################################################
 
 def isfloat(value):
@@ -622,6 +563,7 @@ def CheckForTargetType(labelsList):
 ###############################################################################            
     
 def get_key_from_value(d, val):
+    
     keys = [k for k, v in d.items() if v == val]
     if keys:
         return keys[0]
@@ -629,7 +571,12 @@ def get_key_from_value(d, val):
     
  ###############################################################################   
     
+def get_value_from_key(d, key):
     
+    values = [v for k, v in d.items() if k == key]
+    if values:
+        return values[0]
+    return None    
     
     
     

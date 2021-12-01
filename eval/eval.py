@@ -1,142 +1,324 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Mar  3 15:47:44 2021
+Created on Wed Mar 10 08:37:11 2021
 
-@author: Narmin ghaffari Laleh
+@author: Narmin Ghaffari Laleh
 """
 
 ##############################################################################
 
-from dataGenerator.dataset_generic import Generic_MIL_Dataset
-
-import argparse
-import torch
-import os
 import pandas as pd
-import eval.eval_utils as eu
+from sklearn import metrics
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+from PIL import Image
+import numpy as np
+import utils.utils as utils
+from shutil import copyfile
+import glob
 
 ##############################################################################
 
-# Training settings
-parser = argparse.ArgumentParser(description='CLAM Evaluation Script')
-parser.add_argument('--data_root_dir', type = str, default = None,help = 'data directory')
-parser.add_argument('--results_dir', type = str, default='D:\PT1PT2-CRC-DX\DUMP_Py\RESULTS_CLAM',help='relative path to results folder, the directory containing models_exp_code relative to project root (default: ./results)')
-parser.add_argument('--save_exp_code', type = str, default = None, help = 'experiment code to save eval results')
-parser.add_argument('--models_exp_code', type=str, default = None, help = 'experiment code to load trained models (directory under results_dir containing model checkpoints')
-parser.add_argument('--splits_dir', type = str, default = 'D:\PT1PT2-CRC-DX\DUMP_Py\SPLITS_PT1PT2', help = 'splits directory, if using custom splits other than what matches the task (default: None)')
-parser.add_argument('--model_size', type = str, choices = ['small', 'big'], default = 'small', help = 'size of model (default: small)')
-parser.add_argument('--model_type', type=str, choices = ['clam_sb', 'clam_mb', 'mil'], default = 'clam_sb', help = 'type of model (default: clam_sb)')
-parser.add_argument('--drop_out', action = 'store_true', default = False, help='whether model uses dropout')
-parser.add_argument('--k', type=int, default=10, help='number of folds (default: 10)')
-parser.add_argument('--k_start', type=int, default=-1, help='start fold (default: -1, last fold)')
-parser.add_argument('--k_end', type=int, default=-1, help='end fold (default: -1, first fold)')
-parser.add_argument('--fold', type=int, default=-1, help='single fold to evaluate')
-parser.add_argument('--micro_average', action='store_true', default=False, help='use micro_average instead of macro_avearge for multiclass AUC')
-parser.add_argument('--split', type=str, choices=['train', 'val', 'test', 'all'], default='test')
-parser.add_argument('--task', type=str, choices=['camelyon_40x_cv', 'tcga_kidney_cv'])
-parser.add_argument('--feat_dir', type = str, default = 'D:\PT1PT2-CRC-DX\FEATURES',help = 'Path to Features folder')
-parser.add_argument('--csvPath', type = str, default = 'D:\PT1PT2-CRC-DX\DUMP_Py\Cleaned_Data_PT1PT2.csv',help = 'Path to CSV file')
-parser.add_argument('--base_dir', type = str, default = 'D:\\PT1PT2-CRC-DX',help = 'Path to base folder')
-parser.add_argument('--seed', type = int, default = 1, help = 'random seed for reproducible experiment (default: 1)')
-args = parser.parse_args()
-
-device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-##############################################################################
-
-encoding_size = 1024
-
-args.save_dir = os.path.join('D:\PT1PT2-CRC-DX\DUMP_Py\RESULTS_CLAM', 'EVAL_' + str(args.save_exp_code))
-#args.models_dir = os.path.join(args.results_dir, str(args.models_exp_code))
-args.models_dir = args.results_dir
-os.makedirs(args.save_dir, exist_ok=True)
-
-
-if args.splits_dir is None:
-    args.splits_dir = args.models_dir
-
-assert os.path.isdir(args.models_dir)
-assert os.path.isdir(args.splits_dir)
-
-settings = {'task': args.task,
-            'split': args.split,
-            'save_dir': args.save_dir, 
-            'models_dir': args.models_dir,
-            'model_type': args.model_type,
-            'drop_out': args.drop_out,
-            'model_size': args.model_size}
-
-with open(args.save_dir + '/eval_experiment_{}.txt'.format(args.save_exp_code), 'w') as f:
-    print(settings, file=f)
-f.close()
-
-print(settings)
-args.n_classes = 2
-dataset = Generic_MIL_Dataset(csv_path = args.csvPath,
-                    data_dir = os.path.join(args.base_dir, 'FEATURES'),
-                    shuffle = False, 
-                    seed = args.seed, 
-                    print_info = True,
-                    label_dict  = {'nonMSIH':0, 'MSIH':1},
-                    patient_strat = True,
-                    label_col = 'isMSIH',
-                    ignore = [],
-                    normalize_targetNum = True)
-
-
-if args.k_start == -1:
-    start = 0
-else:
-    start = args.k_start
-if args.k_end == -1:
-    end = args.k
-else:
-    end = args.k_end
-
-if args.fold == -1:
-    folds = range(start, end)
-else:
-    folds = range(args.fold, args.fold+1)
+def CalculatePatientWiseAUC(resultCSVPath, args, reportFile, foldcounter = None, clamMil = False):
     
-ckpt_paths = [os.path.join(args.models_dir, 's_{}_checkpoint.pt'.format(fold)) for fold in folds]
-datasets_id = {'train': 0, 'val': 1, 'test': 2, 'all': -1}
-
-##############################################################################
-
-if __name__ == "__main__":
-    
-    all_results = []
-    all_auc = []
-    all_acc = []
-    
-    for ckpt_idx in range(len(ckpt_paths)):
-        if datasets_id[args.split] < 0:
-            split_dataset = dataset
+    data = pd.read_csv(resultCSVPath)
+    patients = list(set(data['PATIENT']))
+    keys = list(args.target_labelDict.keys())
+    yProbDict = {}    
+    for index, key in enumerate(keys):
+        patientsList = []
+        yTrueList = []
+        yTrueLabelList = []
+        yProbList = []         
+        keys_temp = keys.copy()
+        keys_temp.remove(key)
+        for patient in patients:
+            patientsList.append(patient)
+            data_temp = data.loc[data['PATIENT'] == patient]                        
+            data_temp = data_temp.reset_index()            
+            yTrueList.append(data_temp['yTrue'][0])
+            yTrueLabelList.append(utils.get_key_from_value(args.target_labelDict, data_temp['yTrue'][0]))                        
+            if not clamMil:
+                dl_pred = np.where(data_temp[keys_temp].lt(data_temp[key], axis=0).all(axis=1), True, False)
+                dl_pred = list(dl_pred)
+                true_count = dl_pred.count(True)            
+                yProbList.append(true_count / len(dl_pred)) 
+            else:
+                yProbList.append(np.mean(data_temp[key])) 
+               
+        fpr, tpr, thresholds = metrics.roc_curve(yTrueList, yProbList, pos_label = args.target_labelDict[key])
+        if foldcounter:            
+            print('\nAUC FOR TARGET {} IN THIS DATA SET IN FOLD {} IS: {} '.format(key, foldcounter, np.round(metrics.auc(fpr, tpr), 3)))
+            reportFile.write('AUC FOR TARGET {} IN THIS DATA SET IN FOLD {} IS: {} '.format(key, foldcounter, np.round(metrics.auc(fpr, tpr), 3)) + '\n')
+            path = os.path.join(args.result_dir, 'TEST_RESULT_PATIENT_BASED_FOLD_' + str(foldcounter) + '.csv')
         else:
-            csv_path = '{}/splits_{}.csv'.format(args.splits_dir, folds[ckpt_idx])
-            datasets = dataset.return_splits(from_id=False, csv_path=csv_path)
-            split_dataset = datasets[datasets_id[args.split]]
-        model, patient_results, test_error, auc, df, acc_logger, a_rawList  = eu.eval(split_dataset, args, ckpt_paths[ckpt_idx])
-        all_results.append(all_results)
-        all_auc.append(auc)
-        all_acc.append(1-test_error)
-        df.to_csv(os.path.join(args.save_dir, 'fold_{}.csv'.format(folds[ckpt_idx])), index=False)
+            print('\nAUC FOR TARGET {} IN THIS DATA SET IS: {} '.format(key, np.round(metrics.auc(fpr, tpr), 3)))
+            reportFile.write('AUC FOR TARGET {} IN THIS DATA SET IS: {} '.format(key, np.round(metrics.auc(fpr, tpr), 3)) + '\n')
+            path = os.path.join(args.result_dir, 'TEST_RESULT_PATIENT_BASED_FULL.csv')
+        
+        yProbDict[key] = yProbList
+    yProbDict = pd.DataFrame.from_dict(yProbDict)
+    df = pd.DataFrame(list(zip(patientsList, yTrueList, yTrueLabelList)), columns =['PATIENT', 'yTrue', 'yTrueLabel'])
+    df = pd.concat([df, yProbDict], axis=1)    
+    df.to_csv(path, index = False)
+    return path
+                        
+##############################################################################
 
-    final_df = pd.DataFrame({'folds': folds, 'test_auc': all_auc, 'test_acc': all_acc})
-    if len(folds) != args.k:
-        save_name = 'summary_partial_{}_{}.csv'.format(folds[0], folds[-1])
-    else:
-        save_name = 'summary.csv'
-    final_df.to_csv(os.path.join(args.save_dir, save_name))
+def PlotTrainingLossAcc(train_loss_history, train_acc_history):
     
+    plt.figure()
+    plt.plot(range(len(train_loss_history)), train_loss_history)
+    plt.xlabel('Epochs', fontsize = 30)  
+    plt.xlabel('Train_Loss', fontsize = 30)
+
+    plt.figure()
+    plt.plot(range(len(train_acc_history)), train_acc_history)
+    plt.xlabel('Epochs', fontsize = 30)  
+    plt.xlabel('Train_Accuracy', fontsize = 30)
+
+##############################################################################
+
+def PlotBoxPlot(y_true, y_pred):
+    fig, ax = plt.subplots()
+    sns.boxplot(x = y_true, y = y_pred)
+    ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
+    plt.xlabel('CLASSES', fontsize = 30)  
+    plt.ylabel('SCORES', fontsize = 30)  
+    ax.tick_params(axis='both', which='major', labelsize=30)
+    ax.tick_params(axis='both', which='minor', labelsize=30)
+
+##############################################################################
+
+def PlotROCCurve(y_true, y_pred):
+
+    fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred)
+    fig, ax = plt.subplots()
+    plt.title('Receiver Operating Characteristic', fontsize = 30)
+    plt.plot(fpr, tpr)
+    plt.plot([0, 1], ls="--")
+    plt.plot([0, 0], [1, 0] , c=".7"), plt.plot([1, 1] , c=".7")
+    plt.ylabel('True Positive Rate', fontsize = 30)
+    plt.xlabel('False Positive Rate', fontsize = 30)
+    ax.tick_params(axis='both', which='major', labelsize=30)
+    ax.tick_params(axis='both', which='minor', labelsize=30)
+    ax.set_aspect(1.0/ax.get_data_ratio(), adjustable='box')
+
+##############################################################################
+
+def perf_measure(y_actual, y_hat):
+    TP = 0
+    FP = 0
+    TN = 0
+    FN = 0
+
+    for i in range(len(y_hat)): 
+        if y_actual[i]==y_hat[i]==1:
+           TP += 1
+        if y_hat[i]==1 and y_actual[i]!=y_hat[i]:
+           FP += 1
+        if y_actual[i]==y_hat[i]==0:
+           TN += 1
+        if y_hat[i]==0 and y_actual[i]!=y_hat[i]:
+           FN += 1
+
+    return(TP, FP, TN, FN)
+
+##############################################################################
+
+def CalculateTotalROC(resultsPath, results, target_labelDict, reportFile):
     
+    totalData = []    
+    for item in results:
+        data = pd.read_csv(os.path.join(resultsPath, item))
+        totalData.append(data)        
+    totalData = pd.concat(totalData)
+    y_true = list(totalData['yTrue'])
+    keys = list(target_labelDict.keys())
     
+    for key in keys:
+        y_pred = totalData[key]
+        fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred, pos_label = target_labelDict[key])
+        print('-' * 30)        
+        print('TOTAL AUC FOR target {} IN THIS DATASET IS : {} '.format(key, np.round(metrics.auc(fpr, tpr), 3)))
+        reportFile.write('-' * 30 + '\n')
+        reportFile.write('TOTAL AUC FOR target {} IN THIS DATASET IS : {} '.format(key, np.round(metrics.auc(fpr, tpr), 3)) + '\n')
+        auc_values = []
+        nsamples = 1000
+        rng = np.random.RandomState(666)
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        for i in range(nsamples):
+            indices = rng.randint(0, len(y_pred), len(y_pred))
+            if len(np.unique(y_pred[indices])) < 2 or np.sum(y_true[indices]) == 0:
+                continue    
+            fpr, tpr, thresholds = metrics.roc_curve(y_true[indices], y_pred[indices], pos_label = target_labelDict[key])
+            auc_values.append(metrics.auc(fpr, tpr))
+        
+        auc_values = np.array(auc_values)
+        auc_values.sort()
+        reportFile.write('Lower Confidebnce Interval For Target {}: {}'.format(key, np.round(auc_values[int(0.025 * len(auc_values))], 3)) + '\n')
+        reportFile.write('Higher Confidebnce Interval For Target {} : {}'.format(key, np.round(auc_values[int(0.975 * len(auc_values))], 3)) + '\n')     
+        print('Lower Confidebnce Interval For Target {}: {}'.format(key, np.round(auc_values[int(0.025 * len(auc_values))], 3)))        
+        print('Higher Confidebnce Interval For Target {} : {}'.format(key, np.round(auc_values[int(0.975 * len(auc_values))], 3)))
+        
+    totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_PATIENT_BASED_TOTAL.csv'), index = False)    
+
+##############################################################################
+
+def find_closes(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array-value)).argmin()
+    return array[idx]
+
+##############################################################################
+
+def MergeResultCSV(resultsPath, results, milClam = False):
     
+    totalData = []    
+    for item in results:
+        data = pd.read_csv(os.path.join(resultsPath, item))
+        totalData.append(data)
+    totalData = pd.concat(totalData)
+    if milClam:
+        totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_SLIDE_BASED_TOTAL.csv'), index = False)
+    else:            
+        totalData.to_csv(os.path.join(resultsPath, 'TEST_RESULT_TILE_BASED_TOTAL.csv'), index = False)
+
+##############################################################################
+
+def GenerateHighScoreTiles_Classic(totalPatientResultPath, totalResultPath, numHighScorePetients, numHighScoreTiles, target_labelDict, savePath):
+                       
+    patientData = pd.read_csv(totalPatientResultPath)
+    tileData = pd.read_csv(totalResultPath)
     
+    keys = list(target_labelDict.keys())
+    for key in keys:
+        dataTemp = patientData.loc[patientData['yTrueLabel'] == key]
+        dataTemp = dataTemp.sort_values(by = [key], ascending = False)
+        
+        highScorePosPatients = list(dataTemp['PATIENT'][0 : numHighScorePetients])
+                 
+        fig = plt.figure(figsize=(10,10))
+        i = 1
+        
+        path = os.path.join(savePath, key)
+        os.makedirs(path, exist_ok = True)
+        for index, patient in enumerate(highScorePosPatients):            
+            dataTemp = tileData.loc[tileData['PATIENT'] == patient]
+            dataTemp = dataTemp.sort_values(by = [key], ascending = False)
+            highScorePosTiles = list(dataTemp['TilePath'][0:numHighScoreTiles])                        
+            for tile in highScorePosTiles:            
+                img = Image.open(tile)
+                copyfile(tile, os.path.join(path, tile.split('\\')[-1]))        
+                ax = plt.subplot(numHighScorePetients, numHighScoreTiles, i)
+                ax.set_axis_off()
+                plt.imshow(img)
+                i += 1 
+                
+        plt.savefig(os.path.join(path,  key + '.png'))
+        plt.close()
+
+##############################################################################
+
+def GenerateHighScoreTiles(imgsPath, totalPatientResultPath, totalResultPath, tileScorePath, coordsPath, numHighScorePetients, numHighScoreTiles,
+                           target_labelDict, savePath):
+                       
+    patientData = pd.read_csv(totalPatientResultPath)
     
+    tileScoresData = pd.read_csv(tileScorePath, low_memory = False)
+    coordsData = pd.read_csv(coordsPath, low_memory = False)      
+    tileScoresData = tileScoresData.rename(columns = { 'Unnamed: 0' :'FILENAME'})
+    coordsData = coordsData.rename(columns = { 'Unnamed: 0' :'FILENAME'})
     
-    
-    
-    
-    
-    
+    keys = list(target_labelDict.keys())
+    for key in keys:
+        
+        dataTemp = patientData.loc[patientData['yTrueLabel'] == key]
+        dataTemp = dataTemp.sort_values(by = [key], ascending = False)        
+        highScorePosPatients = list(dataTemp['PATIENT'][0 : numHighScorePetients])
+                 
+        fig = plt.figure(figsize=(10,10))
+        sub_i = 1        
+        path = os.path.join(savePath, key)
+        os.makedirs(path, exist_ok = True)
+        for patient in highScorePosPatients: 
+            temp_scores = tileScoresData[tileScoresData['FILENAME'].str.contains(patient)]    
+            temp_scores = temp_scores.dropna(axis= 'columns')
+            temp_scores.reset_index(inplace = True, drop = True)
+            temp_coords = coordsData[coordsData['FILENAME'].str.contains(patient)] 
+            temp_coords = temp_coords.dropna(axis = 'columns')    
+            temp_coords.reset_index(inplace = True, drop = True)                    
+            coord_x = []
+            coord_y = []
+            scores = []           
+            for i in range(len(temp_coords.columns) - 1):                
+                j = i + 1
+                sc = temp_scores.iloc[0,j].strip('][').split(', ')  
+                scores.append(float(sc[target_labelDict[key]]))                
+                sc = temp_coords.iloc[0,j].strip('][').split(', ')                 
+                coord_x.append(int(sc[0]))
+                coord_y.append(int(sc[1]))            
+            
+            temp = pd.DataFrame(list(zip(scores, coord_x, coord_y)), columns = [key, 'coord_x', 'coord_y'])  
+            temp = temp.sort_values(by = [key], ascending = False)
+
+            coordx = list(temp['coord_x'][0: numHighScoreTiles])
+            coordy = list(temp['coord_y'][0 : numHighScoreTiles])
+            tilePaths = glob.glob(os.path.join(imgsPath[0], temp_scores.iloc[0,0].split('*')[-1]))[0]            
+            imgs = [os.path.join(tilePaths, i) for i in os.listdir(tilePaths)]
+                             
+            for item in range(len(coordx)):
+                try:                        
+                    doFind = [v for v in imgs if '('+ str(coordx[item]) + ',' + str(coordy[item]) + ')' in v]                         
+                    img = Image.open(doFind[0])
+                    copyfile(doFind[0], os.path.join(os.path.join(savePath, key), doFind[0].split('\\')[-1]))                
+                    ax = plt.subplot(numHighScorePetients, numHighScorePetients, sub_i)
+                    ax.set_axis_off()
+                    plt.imshow(img)
+                    sub_i += 1  
+                except:
+                    print('('+ str(coordx[item]) + ',' + str(coordy[item]) + ')')
+                    
+        plt.savefig(os.path.join(os.path.join(savePath, key),  key + '.png'))
+        plt.close()            
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -3,6 +3,9 @@
 Created on Thu Feb 25 10:59:29 2021
 
 @author: Narmin Ghaffari Laleh
+
+reference : https://github.com/mahmoodlab/CLAM
+
 """
 
 import torch
@@ -13,11 +16,14 @@ import utils.utils as utils
 ##############################################################################
 
 class MIL_fc(nn.Module):
+    
     def __init__(self, gate = True, size_arg = "small", dropout = False, n_classes = 2, top_k = 1):
+        
         super(MIL_fc, self).__init__()
         assert n_classes == 2
-        #self.size_dict = {"small": [1024, 512]}
-        self.size_dict = {"small": [512, 256]}
+        self.size_dict = {"small": [1024, 512]}
+        #self.size_dict = {"small": [512, 256]}
+        
         size = self.size_dict[size_arg]
         fc = [nn.Linear(size[0], size[1]), nn.ReLU()]
         if dropout:
@@ -29,6 +35,7 @@ class MIL_fc(nn.Module):
         self.top_k=top_k
 
     def relocate(self):
+        
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.cuda.device_count() > 1:
             device_ids = list(range(torch.cuda.device_count()))
@@ -36,7 +43,7 @@ class MIL_fc(nn.Module):
         else:
             self.classifier.to(device)
 
-    def forward(self, h, return_features = True):
+    def forward(self, h, return_features = False):
         if return_features:
             h = self.classifier.module[:3](h)
             logits = self.classifier.module[3](h)
@@ -45,7 +52,7 @@ class MIL_fc(nn.Module):
         
         y_probs = F.softmax(logits, dim = 1)
         top_instance_idx = torch.topk(y_probs[:, 1], self.top_k, dim=0)[1].view(1,)
-        top_instance = torch.index_select(logits, dim=0, index=top_instance_idx)
+        top_instance = torch.index_select(logits, dim = 0, index = top_instance_idx)
         Y_hat = torch.topk(top_instance, 1, dim = 1)[1]
         Y_prob = F.softmax(top_instance, dim = 1) 
         results_dict = {}
@@ -59,6 +66,7 @@ class MIL_fc(nn.Module):
         
 class MIL_fc_mc(nn.Module):
     def __init__(self, gate = True, size_arg = "small", dropout = False, n_classes = 2, top_k=1):
+        
         super(MIL_fc_mc, self).__init__()
         assert n_classes > 2
         self.size_dict = {"small": [1024, 512]}
@@ -69,7 +77,7 @@ class MIL_fc_mc(nn.Module):
         self.fc = nn.Sequential(*fc)
 
         self.classifiers = nn.ModuleList([nn.Linear(size[1], 1) for i in range(n_classes)])
-        utils.Initialize_weights(self)
+        utils.initialize_weights(self)
         self.top_k=top_k
         self.n_classes = n_classes
         assert self.top_k == 1
@@ -104,4 +112,4 @@ class MIL_fc_mc(nn.Module):
         if return_features:
             top_features = torch.index_select(h, dim=0, index=top_indices[0])
             results_dict.update({'features': top_features})
-        return top_instance, Y_prob, Y_hat, y_probs, results_dict
+        return top_instance, Y_prob, Y_hat, y_probs, results_dict        

@@ -3,7 +3,11 @@
 Created on Wed Feb 24 09:04:57 2021
 
 @author: Narmin Ghaffari Laleh
+
+reference : https://github.com/mahmoodlab/CLAM
+
 """
+
 ##############################################################################
 
 import glob

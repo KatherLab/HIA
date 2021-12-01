@@ -7,8 +7,10 @@ Created on Thu Mar 18 16:08:57 2021
 
 ###############################################################################
 
-from ClassicTraining import ClassicTraining
-from ClamMILTraining import ClamMILTraining
+from Classic_Training import Classic_Training
+from CLAM_MIL_Training import CLAM_MIL_Training
+from AttMIL_Training import AttMIL_Training
+
 import utils.utils as utils
 
 import warnings
@@ -18,30 +20,25 @@ import torch
 ###############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-parser.add_argument('--adressExp', type = str, default = r"F:\TCGA-BRCA_Experiments\TCGA-BRCA_SS_CLAM.txt", help = 'Adress to the experiment File')
+parser.add_argument('--adressExp', type = str, default = r"L:\Experiments\DACHS_MIL_CROSSVAL.txt", help = 'Adress to the experiment File')
 args = parser.parse_args()
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
-
 warnings.filterwarnings("ignore")
+print('\nTORCH Detected: {}\n'.format(device))
 
 ############################################### ################################
 
 if __name__ == '__main__':
         
-    args = utils.ReadExperimentFile(args)
-    print(args.project_name)
-    #torch.cuda.set_device(args.gpuNo)
-    
-    args.new_Split = True
-    args.feature_extract = False
-    args.self_supervised = False
-    
+    args = utils.ReadExperimentFile(args)    
     if args.useClassicModel:
-        ClassicTraining(args)
-    else:
-        ClamMILTraining(args)
+        Classic_Training(args)
+        torch.cuda.set_device(args.gpuNo)
+        
+    elif args.model_name == 'attmil':
+        AttMIL_Training(args)        
+    else:            
+        CLAM_MIL_Training(args)
         
         
         

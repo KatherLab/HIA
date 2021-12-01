@@ -4,14 +4,13 @@ Created on Wed Feb 24 08:35:24 2021
 
 @author: Narmin Ghaffari Laleh
 
+reference : https://github.com/mahmoodlab/CLAM
+
 """
 ##############################################################################
 
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
-import torch
-from torchsummary import summary
-import torch.nn.functional as F
 
 ##############################################################################
 
@@ -29,6 +28,7 @@ model_urls = {
 ##############################################################################
 
 class Bottleneck_Baseline(nn.Module):
+    
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):

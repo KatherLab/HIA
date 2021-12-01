@@ -1,0 +1,30 @@
+{
+    "projectDetails":"",
+    "dataDir_train":["L:\\"],
+    "dataDir_test":[""],
+
+    "targetLabels":["isMSIH"],
+    "trainFull":"True",
+    "numPatientToUse" : "ALL",
+
+    "maxNumBlocks":500,
+    "minNumBlocks" : 0,
+
+    "epochs":200,
+    "batchSize":128,
+    "freezeRatio" : 0.5,
+    "repeatExperiment" : 1,
+     
+    "seed":1,
+    "k":3,
+
+    "modelName":"resnet18",
+    "opt":"adam",
+    "lr":0.0002,
+    "reg":0.00001,
+    "gpuNo":0,
+
+    "earlyStop":"True",
+    "minEpochToTrain":10, 
+    "patience":5}
+ 
