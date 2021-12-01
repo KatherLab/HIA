@@ -137,12 +137,14 @@ def Train_MIL_CLAM(datasets, fold, args, trainFull = False):
         print('EPOCH: {}'.format(epoch))        
         if args.model_name in ['clam_sb', 'clam_mb'] and not args.no_inst_cluster:            
             Train_loop_CLAM(epoch = epoch, model = model, loader = train_loader, optimizer = optimizer, n_classes = args.num_classes,
-                            bag_weight = args.bag_weight,loss_fn =  loss_fn)            
-            stop = validate_CLAM(fold = fold, epoch = epoch, model = model, loader = val_loader, n_classes = args.num_classes, early_stopping = early_stopping,
+                            bag_weight = args.bag_weight,loss_fn =  loss_fn)  
+            if args.early_stopping:
+                stop = validate_CLAM(fold = fold, epoch = epoch, model = model, loader = val_loader, n_classes = args.num_classes, early_stopping = early_stopping,
                                  loss_fn = loss_fn, results_dir = args.result_dir)                
         elif args.model_name == 'mil':           
-            Train_loop_MIL(epoch = epoch, model = model, loader = train_loader, optimizer = optimizer, n_classes = args.num_classes,loss_fn = loss_fn)            
-            stop = Validate_MIL(fold = fold, epoch = epoch, model = model, loader = val_loader, n_classes = args.num_classes, early_stopping = early_stopping,
+            Train_loop_MIL(epoch = epoch, model = model, loader = train_loader, optimizer = optimizer, n_classes = args.num_classes,loss_fn = loss_fn) 
+            if args.early_stopping:
+                stop = Validate_MIL(fold = fold, epoch = epoch, model = model, loader = val_loader, n_classes = args.num_classes, early_stopping = early_stopping,
                                  loss_fn = loss_fn, results_dir = args.result_dir)                          
         if stop: 
             print('-' * 30)
