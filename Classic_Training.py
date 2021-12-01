@@ -77,15 +77,19 @@ def Classic_Training(args):
                 print('GENERATE NEW TILES...')                            
                 train_data = GetTiles(csvFile = args.csvFile, label = targetLabel, target_labelDict = args.target_labelDict, maxBlockNum = args.maxBlockNum, test = False)                
                 train_x = list(train_data['TilePath'])
-                train_y = list(train_data['yTrue'])                
-                val_data = train_data.groupby('yTrue', group_keys = False).apply(lambda x: x.sample(frac = 0.1))                
-                val_x = list(val_data['TilePath']) 
-                val_y = list(val_data['yTrue'])                  
-                train_data = train_data[~train_data['TilePath'].isin(val_x)]
-                train_x = list(train_data['TilePath'])
-                train_y = list(train_data['yTrue']) 
-                train_data.to_csv(os.path.join(args.split_dir, 'TrainSplit.csv'), index = False)
-                val_data.to_csv(os.path.join(args.split_dir, 'ValSplit.csv'), index = False)                              
+                train_y = list(train_data['yTrue'])  
+                if args.early_stopping:
+                    val_data = train_data.groupby('yTrue', group_keys = False).apply(lambda x: x.sample(frac = 0.1))                
+                    val_x = list(val_data['TilePath']) 
+                    val_y = list(val_data['yTrue'])                  
+                    train_data = train_data[~train_data['TilePath'].isin(val_x)]
+                    train_x = list(train_data['TilePath'])
+                    train_y = list(train_data['yTrue']) 
+                    val_data.to_csv(os.path.join(args.split_dir, 'ValSplit.csv'), index = False)
+                else:
+                    valGenerator = []
+                    
+                train_data.to_csv(os.path.join(args.split_dir, 'TrainSplit.csv'), index = False)                                              
                 print()
                 print('-' * 30)
                 
@@ -99,9 +103,9 @@ def Classic_Training(args):
             
                 train_set = DatasetLoader_Classic(train_x, train_y, transform = torchvision.transforms.ToTensor, target_patch_size = input_size)           
                 trainGenerator = torch.utils.data.DataLoader(train_set, **params)
-
-                val_set = DatasetLoader_Classic(val_x, val_y, transform = torchvision.transforms.ToTensor, target_patch_size = input_size)           
-                valGenerator = torch.utils.data.DataLoader(val_set, **params)
+                if args.early_stopping:
+                    val_set = DatasetLoader_Classic(val_x, val_y, transform = torchvision.transforms.ToTensor, target_patch_size = input_size)           
+                    valGenerator = torch.utils.data.DataLoader(val_set, **params)
                             
                 noOfLayers = 0
                 for name, child in model.named_children():
@@ -117,7 +121,8 @@ def Classic_Training(args):
                 optimizer = utils.get_optim(model, args, params = False)            
                 criterion = nn.CrossEntropyLoss()
                 print('\nSTART TRAINING ...', end = ' ')
-                model, train_loss_history, train_acc_history, val_acc_history, val_loss_history = Train_model_Classic(model = model, trainLoaders = trainGenerator, valLoaders = valGenerator,
+                model, train_loss_history, train_acc_history, val_acc_history, val_loss_history = Train_model_Classic(model = model,
+                                                 trainLoaders = trainGenerator, valLoaders = valGenerator,
                                                  criterion = criterion, optimizer = optimizer, args = args, fold = 'FULL')            
                 print('-' * 30)
                         

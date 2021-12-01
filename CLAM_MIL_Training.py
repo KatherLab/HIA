@@ -83,14 +83,20 @@ def CLAM_MIL_Training(args):
             if args.train_full:
                 print('-' * 30)
                 print('IT IS A FULL TRAINING FOR ' + targetLabel + '!')            
-                train_data = pd.DataFrame(list(zip(patientsList, yTrue, yTrueLabel)), columns = ['PATIENT', 'yTrue', 'yTrueLabel'])                              
-                val_data = train_data.groupby('yTrue', group_keys = False).apply(lambda x: x.sample(frac = 0.1)) 
-                train_data = train_data[~train_data['PATIENT'].isin(list(val_data['PATIENT']))]
-                train_data.reset_index(inplace = True, drop = True)
-                val_data.reset_index(inplace = True, drop = True)
-                df = pd.DataFrame({'train': pd.Series(train_data['PATIENT']), 'test': pd.Series([]), 'val' : pd.Series(val_data['PATIENT'])})
-                df.to_csv(os.path.join(args.split_dir, 'TrainValSplit.csv'), index = False)               
-                train_dataset, val_dataset, test_dataset = dataset.Return_splits(from_id = False, csv_path = os.path.join(args.split_dir, 'TrainValSplit.csv'))                 
+                train_data = pd.DataFrame(list(zip(patientsList, yTrue, yTrueLabel)), columns = ['PATIENT', 'yTrue', 'yTrueLabel'])   
+                if args.early_stopping:                           
+                    val_data = train_data.groupby('yTrue', group_keys = False).apply(lambda x: x.sample(frac = 0.1)) 
+                    train_data = train_data[~train_data['PATIENT'].isin(list(val_data['PATIENT']))]
+                    train_data.reset_index(inplace = True, drop = True)
+                    val_data.reset_index(inplace = True, drop = True)
+                    df = pd.DataFrame({'train': pd.Series(train_data['PATIENT']), 'test': pd.Series([]), 'val' : pd.Series(val_data['PATIENT'])})
+                    df.to_csv(os.path.join(args.split_dir, 'TrainSplit.csv'), index = False) 
+                    train_dataset, val_dataset, test_dataset = dataset.Return_splits(from_id = False, csv_path = os.path.join(args.split_dir, 'TrainSplit.csv')) 
+                else:
+                    df = pd.DataFrame({'train': pd.Series(train_data['PATIENT']), 'test': pd.Series([]), 'val' : pd.Series([])})
+                    df.to_csv(os.path.join(args.split_dir, 'TrainValSplit.csv'), index = False) 
+                    train_dataset, val_dataset, test_dataset = dataset.Return_splits(from_id = False, csv_path = os.path.join(args.split_dir, 'TrainValSplit.csv')) 
+                    
                 datasets = (train_dataset, val_dataset, test_dataset)
                 model, _, _  = Train_MIL_CLAM(datasets = datasets, fold = 'FULL', args = args, trainFull = True)  
                 torch.save(model.state_dict(), os.path.join(args.projectFolder, 'RESULTS', 'finalModel'))                
@@ -120,7 +126,7 @@ def CLAM_MIL_Training(args):
                     
                     print('GENERATE NEW TILES...\n')    
                     print('FOR TRAIN SET...\n')                         
-                    train_data = pd.DataFrame(list(zip(trainPatients, trainyTrue, trainyTrueLabel)), columns = ['PATIENT', 'yTrue', 'yTrueLabel'])             
+                    train_data = pd.DataFrame(list(zip(trainPatients, trainyTrue, trainyTrueLabel)), columns = ['PATIENT', 'yTrue', 'yTrueLabel'])    
                     print('FOR VALIDATION SET...\n')  
                     val_data = train_data.groupby('yTrue', group_keys = False).apply(lambda x: x.sample(frac = 0.1))                
                     train_data = train_data[~train_data['PATIENT'].isin(list(val_data['PATIENT']))]           
@@ -162,8 +168,7 @@ def CLAM_MIL_Training(args):
                         yTrueLabe_test.append(utils.get_key_from_value(args.target_labelDict, temp['label']))   
                         
                         for key in list(args.target_labelDict.keys()):
-                            if args.model_name in ['clam_sb', 'clam_mb']:
-                                probs[key].append(temp['prob'][0][utils.get_value_from_key(args.target_labelDict, key)])
+                            probs[key].append(temp['prob'][0][utils.get_value_from_key(args.target_labelDict, key)])
                     
                     probs = pd.DataFrame.from_dict(probs)                        
                     df = pd.DataFrame(list(zip(patients, filaNames, yTrue_test, yTrueLabe_test)), columns =['PATIENT', 'FILENAME', 'yTrue', 'yTrueLabel'])

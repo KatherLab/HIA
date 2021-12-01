@@ -70,7 +70,8 @@ def Train_MIL_CLAM(datasets, fold, args, trainFull = False):
     train_split, val_split, test_split = datasets        
     print('-' * 30)
     print("Training on {} samples".format(len(train_split)))
-    print("Validating on {} samples".format(len(val_split)))   
+    if val_split:
+        print("Validating on {} samples".format(len(val_split)))   
     
     if not trainFull:        
         print("Testing on {} samples".format(len(test_split)))  
@@ -433,8 +434,9 @@ def Train_model_Classic(model, trainLoaders, args, valLoaders = [], criterion = 
     train_acc_history = []
     train_loss_history = []
     val_acc_history = []
-    val_loss_history = []   
-    early_stopping = EarlyStopping(patience = args.patience, stop_epoch = args.minEpochToTrain, verbose = True)    
+    val_loss_history = []  
+    if args.early_stopping:
+        early_stopping = EarlyStopping(patience = args.patience, stop_epoch = args.minEpochToTrain, verbose = True)    
     for epoch in range(args.max_epochs):
         phase = 'train'
         print('Epoch {}/{}\n'.format(epoch, args.max_epochs - 1))

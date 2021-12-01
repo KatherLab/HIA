@@ -22,8 +22,8 @@ from sklearn import preprocessing
 ##############################################################################
 
 parser = argparse.ArgumentParser(description = 'Main Script to Run Training')
-parser.add_argument('--adressExp', type = str, default = r"L:\Experiments\TCGA_MIL_TESTFULL.txt", help = 'Adress to the experiment File')
-parser.add_argument('--modelAdr', type = str, default = r"L:\Experiments\DACHS_MIL_TRAINFULL_isMSIH_1\RESULTS\bestModel", help = 'Adress to the selected model')
+parser.add_argument('--adressExp', type = str, default = r"L:\Experiments\TCGA_RESNET18_TESTFULL_WithZenodoModel.txt", help = 'Adress to the experiment File')
+parser.add_argument('--modelAdr', type = str, default = r"C:\Users\nghaffarilal\sciebo\deepHistology\labMembers\Narmin\Utils\Exp5_MODEL_Full", help = 'Adress to the selected model')
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
