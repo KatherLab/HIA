@@ -18,7 +18,8 @@ from PIL import Image
 from torch.utils.data import DataLoader, Sampler, WeightedRandomSampler, RandomSampler, SequentialSampler, sampler
 from torchvision import transforms
 import utils.utils as utils
-
+from pathlib import Path
+import pathlib
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ##############################################################################
@@ -178,173 +179,101 @@ class SubsetSequentialSampler(Sampler):
 
 def ConcatCohorts_Classic(imagesPath, cliniTablePath, slideTablePath,  label, reportFile, outputPath, csvName, patientNumber = 'ALL', minNumberOfTiles = 0):   
 
-    patients = []
+    wholePatients = []
+    wholeImageNames = []
     
-    slideTableList = []
-    clinicalTableList = []
-    
-    imgsList = []
+    wholeSlideTables = []
+    wholeCliniTables = []
 
-    patientList = []
-    slideList = []
-    slideAdr = []
-    labelList = []
-
-    labelList_return = []
-    patientList_return = []
+    OutputLabelList = []
+    OutputPatientList = []
     
     for imgCounter in range(len(imagesPath)):
                 
-        print('LOADING DATA FROM ' + imagesPath[imgCounter] + '...\n')
-        reportFile.write('LOADING DATA FROM ' + imagesPath[imgCounter] + '...' + '\n')
+        print('LOADING DATA FROM ' + str(imagesPath[imgCounter]) + '...\n')
+        reportFile.write('LOADING DATA FROM ' + str(imagesPath[imgCounter]) + '...' + '\n')
         
-        imgPath = imagesPath[imgCounter]
-        cliniPath = cliniTablePath[imgCounter]
-        slidePath = slideTablePath[imgCounter]
+        currentImgPath = imagesPath[imgCounter]
+        currentCliniPath = cliniTablePath[imgCounter]
+        currentSlidePath = slideTablePath[imgCounter]
         
-        if cliniPath.split('.')[-1] == 'csv':
-            clinicalTable = pd.read_csv(cliniPath)
+        if currentCliniPath.suffix  == '.csv':
+            currentCliniTable = pd.read_csv(currentCliniPath)
         else:
-            clinicalTable = pd.read_excel(cliniPath)
+            currentCliniTable = pd.read_excel(currentCliniPath)
         
-        if slidePath.split('.')[-1] == 'csv':
-            slideTable = pd.read_csv(slidePath)
+        if currentSlidePath.suffix  == '.csv':
+            currentSlideTable = pd.read_csv(currentSlidePath)
         else:
-            slideTable = pd.read_excel(slidePath)
+            currentSlideTable = pd.read_excel(currentSlidePath)
 
-        clinicalTable[label] = clinicalTable[label].replace(' ', '')
-        lenBefore = len(clinicalTable)
-        clinicalTable = clinicalTable[clinicalTable[label].notna()]
+        currentCliniTable[label] = currentCliniTable[label].replace(' ', '')
+        lenBefore = len(currentCliniTable)
+        currentCliniTable = currentCliniTable[currentCliniTable[label].notna()]
         
         notAcceptedValues = ['NA', 'NA ', 'NAN', 'N/A', 'na', 'n.a', 'N.A', 'UNKNOWN', 'x', 'NotAPPLICABLE', 'NOTPERFORMED',
                              'NotPerformed', 'Notassigned', 'excluded', 'exclide', '#NULL', 'PerformedButNotAvailable', 'x_', 'NotReported', 'notreported', 'INCONCLUSIVE', 'Unknown']
         
         for i in notAcceptedValues:
-            clinicalTable = clinicalTable[clinicalTable[label] != i]
+            currentCliniTable = currentCliniTable[currentCliniTable[label] != i]
 
-        lenafter = len(clinicalTable)
+        lenafter = len(currentCliniTable)
         
         print('Remove the NaN values from the Target Label...\n')
         print('{} Patients didnt have the proper label for target label: {}\n'.format(lenBefore - lenafter, label))
         reportFile.write('{} Patients didnt have the proper label for target label: {}'.format(lenBefore-lenafter, label) + '\n')
         
-        clinicalTable_Patient = list(clinicalTable['PATIENT'])
-        clinicalTable_Patient = list(set(clinicalTable_Patient))
+        currentCliniTable_Patient = list(currentCliniTable['PATIENT'])
+        currentCliniTable_PatientUnique = list(set(currentCliniTable_Patient))
+        if len(currentCliniTable_Patient) != len(currentCliniTable_PatientUnique):
+            raise NameError('There are duplicate patients in clini table!')
         
-        slideTable_Patint = list(slideTable['PATIENT'])
-        slideTable_Patint = list(set(slideTable_Patint))
-    
-        # MAKE SURE SLIDE TABLE AND CLINICAL TABLE HAS SAME PATIENT IDs
-        inClinicalNotInSlide = []
-        for item in clinicalTable_Patient:
-            if not item in slideTable_Patint:
-                inClinicalNotInSlide.append(item)
-                
-        print('Data for {} Patients from Clini Table is not found in Slide Table!\n'.format(len(inClinicalNotInSlide)))
-        reportFile.write('Data for {} Patients from Clini Table is not found in Slide Table!'.format(len(inClinicalNotInSlide)) + '\n')
+        currentSlideTable_slides = list(currentSlideTable['FILENAME'])
+        currentSlideTable_slidesUnique = list(set(currentSlideTable_slides))
+        if len(currentSlideTable_slides) != len(currentSlideTable_slidesUnique):
+            raise NameError('There are duplicate slides in slide table!')           
         
-        inSlideNotInClinical = []
-        for item in slideTable_Patint:
-            if not item in clinicalTable_Patient:
-                inSlideNotInClinical.append(item)
-                
-        print('Data for {} Patients from Slide Table is not found in Clini Table!\n'.format(len(inSlideNotInClinical)))
-        reportFile.write('Data for {} Patients from Slide Table is not found in Clini Table!'.format(len(inSlideNotInClinical)) + '\n')
-                
-        print('-' * 30)
-        reportFile.write('-' * 30 + '\n')
+        currentImageNames = os.listdir(currentImgPath)
+        #TODO: Check to have images which have tiles
+        commonslides = list(list(set(currentImageNames) & set(currentSlideTable['FILENAME']))) 
+        currentSlideTable = currentSlideTable.loc[currentSlideTable['FILENAME'].isin(commonslides)]
         
-        patienID_temp = []
-        for item in clinicalTable_Patient:
-            if item in slideTable_Patint:
-                patienID_temp.append(item)    
-
-        patientIDs = []
-        for item in patienID_temp:
-            if item in clinicalTable_Patient:
-                patientIDs.append(item)
+        currentPatients = pd.Series(list(set(currentCliniTable['PATIENT']) & set(currentSlideTable['PATIENT'])))
+        currentPatients = list(set(currentPatients))
         
-        patientIDs = list(set(patientIDs))
-        intersect = utils.intersection(patients, patientIDs)
+        intersect = utils.intersection(wholePatients, currentPatients)
         
         if not len(intersect) == 0:
             print(imagesPath[imgCounter])
             print(intersect)
             raise NameError('There are same PATIENT ID between COHORTS')
             
-        imageNames = os.listdir(imgPath)
-        imageNames =[os.path.join(imgPath, i) for i in imageNames]
-        patients = patients + patientIDs
-        imgsList = imgsList + imageNames
+        wholePatients = wholePatients + currentPatients
+        wholeImageNames = wholeImageNames + currentImageNames
         
-        clinicalTable = clinicalTable.loc[clinicalTable['PATIENT'].isin(patientIDs)]
-        slideTable = slideTable.loc[slideTable['PATIENT'].isin(patientIDs)]
+        currentCliniTable = currentCliniTable.loc[currentCliniTable['PATIENT'].isin(currentPatients)]
+        currentSlideTable = currentSlideTable.loc[currentSlideTable['PATIENT'].isin(currentPatients)]
         
-        clinicalTableList.append(clinicalTable[['PATIENT', label]])
-        slideTableList.append(slideTable)
+        FILEPATH = []
+        for path in currentSlideTable['FILENAME']:
+            FILEPATH.append(Path(currentImgPath, i))
+        currentSlideTable['FILEPATH'] = FILEPATH
+        wholeCliniTables.append(currentCliniTable[['PATIENT', label]])
+        wholeSlideTables.append(currentSlideTable)
     
-    clinicalTableList = pd.concat(clinicalTableList)
-    slideTableList = pd.concat(slideTableList)
-    
-    slideTable_PatintNotUnique = list(slideTableList['PATIENT'])
-    
-    if patientNumber == 'ALL':        
-        for patientID in tqdm(patients):            
-            indicies = [i for i, n in enumerate(slideTable_PatintNotUnique) if n == patientID]
-            matchedSlides = [list(slideTableList['FILENAME'])[i] for i in indicies] 
-    
-            temp = clinicalTableList.loc[clinicalTableList['PATIENT'] == str(patientID)]
-            temp.reset_index(drop = True, inplace=True)
-            
-            for slide in matchedSlides:
-                slideName = [i for i in imageNames if slide in i]
-                if not len(slideName) == 0:
-                    slideName = slideName[0]                         
-                    if not len(os.listdir(slideName)) <= minNumberOfTiles:
-                        patientList.append(patientID)
-                        slideList.append(slideName.split('\\')[-1])
-                        slideAdr.append(slideName) 
-                        labelList.append(temp[label][0])                    
-                        if not patientID in patientList_return:
-                            patientList_return.append(patientID)
-                            labelList_return.append(temp[label][0])
-                else:
-                    reportFile.write('Slide {} is dropped out because of Pre-Processing.'.format(slide) + '\n')
-                
+    wholeCliniTables = pd.concat(wholeCliniTables)
+    wholeSlideTables = pd.concat(wholeSlideTables)
+        
+    if patientNumber == 'ALL':   
+        returnCSV = pd.merge(wholeSlideTables, wholeCliniTables, on='PATIENT')                        
     else:
-        patientsCopy = patients.copy()
-        while len(patientList_return) < int(patientNumber):
-            samplePatient = random.sample(patientsCopy, 1)[0]
-            patientsCopy.remove(samplePatient)      
-            indicies = [i for i, n in enumerate(slideTable_PatintNotUnique) if n == samplePatient]
-            matchedSlides = [list(slideTableList['FILENAME'])[i] for i in indicies] 
-            
-            temp = clinicalTableList.loc[clinicalTableList['PATIENT'] == str(samplePatient)]
-            temp.reset_index(drop = True, inplace=True)
-             
-            for slide in matchedSlides:
-                slideName = [i for i in imageNames if slide in i]
-                if not len(slideName) == 0:
-                    slideName = slideName[0]                         
-                    if not len(os.listdir(slideName)) < minNumberOfTiles:
-                        patientList.append(samplePatient)
-                        slideList.append(slideName.split('\\')[-1])
-                        slideAdr.append(slideName) 
-                        labelList.append(temp[label][0])                    
-                        if not samplePatient in patientList_return:
-                            patientList_return.append(samplePatient)
-                            labelList_return.append(temp[label][0])
-                else:
-                    reportFile.write('Slide {} is dropped out because of Pre-Processing.'.format(slide) + '\n')
-                                                                       
-    data = pd.DataFrame()
-    data['PATIENT'] = patientList
-    data['FILENAME'] = slideList
-    data['SlideAdr'] = slideAdr    
-    data[label] = labelList
-             
-    data.to_csv(os.path.join(outputPath, csvName + '.csv'),  index = False)
-    return patientList_return, labelList_return, os.path.join(outputPath, csvName + '.csv')
+        sampledPatients = random.sample(list(wholeCliniTables['PATIENT']), patientNumber)
+        sampledClini = wholeCliniTables.loc[wholeCliniTables['PATIENT'].isin(sampledPatients)]
+        returnCSV = pd.merge(wholeSlideTables, sampledClini, on='PATIENT')                                                                   
+    
+    csvPath = Path(outputPath, csvName + '.csv')
+    returnCSV.to_csv(csvPath,  index = False)
+    return csvPath
  
 ###############################################################################
 

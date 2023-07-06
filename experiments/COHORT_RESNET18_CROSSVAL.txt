@@ -1,0 +1,26 @@
+{
+    "projectDetails": "",
+    "dataDir_train": [".\\data"],
+    "dataDir_test": [""],
+
+    "targetLabels": ["Diagnosis"],
+    "trainFull": "True",
+    "numPatientToUse" : 1,
+
+    "maxNumBlocks": 512,
+    "epochs": 8,
+    "batchSize": 128,
+    "repeatExperiment":5,
+     
+    "seed": 1,
+    "k": 3,
+
+    "modelName": "resnet",
+    "opt": "adam",
+    "lr": 0.0001,
+    "reg": 0.00001,
+    "gpuNo": 0,
+    "freezeRatio": 0.5,
+    "numHighScorePatients": 10,
+    "numHighScoreBlocks": 20
+}

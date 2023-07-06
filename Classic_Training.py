@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Mar  8 10:14:47 2021
-
 @author: Narmin Ghaffari Laleh
 """
 
-##############################################################################
-
+#%% 
 from utils.data_utils import ConcatCohorts_Classic, DatasetLoader_Classic, GetTiles
 from utils.core_utils import Train_model_Classic, Validate_model_Classic
 from eval.eval import CalculatePatientWiseAUC, CalculateTotalROC, MergeResultCSV
@@ -20,54 +18,58 @@ import pandas as pd
 import torch
 import os
 import random
+from pathlib import Path
 from sklearn import preprocessing
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-##############################################################################
-
+#%%
 def Classic_Training(args):
         
     targetLabels = args.target_labels
     for targetLabel in targetLabels:
         for repeat in range(args.repeatExperiment): 
-            
             args.target_label = targetLabel        
             random.seed(args.seed)
-            args.projectFolder = utils.CreateProjectFolder(ExName = args.project_name, ExAdr = args.adressExp, targetLabel = targetLabel,
+            args.projectFolder = utils.CreateProjectFolder(ExName = args.project_name, ExAdr = args.adressExp, targetLabel = args.target_label,
                                                            model_name = args.model_name, repeat = repeat + 1)
             print('-' * 30 + '\n')
             print(args.projectFolder)
-            if os.path.exists(args.projectFolder):
+            if args.projectFolder.exists():
                 continue
             else:
                 os.mkdir(args.projectFolder) 
                 
-            args.result_dir = os.path.join(args.projectFolder, 'RESULTS')
+            args.result_dir = Path(args.projectFolder, 'RESULTS')
             os.makedirs(args.result_dir, exist_ok = True)
-            args.split_dir = os.path.join(args.projectFolder, 'SPLITS')
+            args.split_dir = Path(args.projectFolder, 'SPLITS')
             os.makedirs(args.split_dir, exist_ok = True)
                
-            reportFile  = open(os.path.join(args.projectFolder,'Report.txt'), 'a', encoding="utf-8")
+            reportFile  = open(Path(args.projectFolder,'Report.txt'), 'a', encoding="utf-8")
+            
             reportFile.write('-' * 30 + '\n')
             reportFile.write(str(args))
             reportFile.write('-' * 30 + '\n')
             
             print('\nLOAD THE DATASET FOR TRAINING...\n')     
-            patientsList, labelsList, args.csvFile = ConcatCohorts_Classic(imagesPath = args.datadir_train, 
-                                                                          cliniTablePath = args.clini_dir, slideTablePath = args.slide_dir,
-                                                                          label = targetLabel, minNumberOfTiles = args.minNumBlocks,
-                                                                          outputPath = args.projectFolder, reportFile = reportFile, csvName = args.csv_name,
+            args.csvPath = ConcatCohorts_Classic(imagesPath = args.datadir_train, 
+                                                                          cliniTablePath = args.clini_dir,
+                                                                          slideTablePath = args.slide_dir,
+                                                                          label = targetLabel, 
+                                                                          minNumberOfTiles = args.minNumBlocks,
+                                                                          outputPath = args.projectFolder,
+                                                                          reportFile = reportFile,
+                                                                          csvName = args.csv_name,
                                                                           patientNumber = args.numPatientToUse)                        
-            labelsList = utils.CheckForTargetType(labelsList)
+            
+            dataset = pd.read_csv(args.csvPath)
+            labels = utils.CheckForTargetType(dataset[args.target_label])
             
             le = preprocessing.LabelEncoder()
-            labelsList = le.fit_transform(labelsList)
+            labels = le.fit_transform(labels)
             
-            args.num_classes = len(set(labelsList))
+            args.num_classes = len(set(labels))
             args.target_labelDict = dict(zip(le.classes_, range(len(le.classes_))))        
-          
-            utils.Summarize(args, list(labelsList), reportFile)
+            utils.Summarize(args, list(labels), reportFile)
         
         
             if len(patientsList) < 20:
