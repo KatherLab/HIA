@@ -171,7 +171,7 @@ def AttMIL_Training(args):
                     
                     model.load_state_dict(torch.load(os.path.join(args.projectFolder, 'RESULTS', 'bestModelFold' + str(foldcounter))))
                     model = model.to(device)
-                    test_dl = dls.test_dl(test_Data)
+                    test_dl = dls.test_dl(test_data)
                     probsList  = Validate_model_AttMIL(model = model, dataloaders = test_dl)
 
                     probs = {}
